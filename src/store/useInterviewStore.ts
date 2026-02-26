@@ -9,11 +9,13 @@ type State = {
   topics: Topic[];
   generatedMarkdown?: string;
   notionUrl?: string;
+  notionPublicUrl?: string;
   setInput: (input: { companyName: string; jobDescription: string; techStack: string }) => void;
   setTopics: (topics: Topic[]) => void;
   updateTopic: (id: string, patch: Partial<Topic>) => void;
   setGenerated: (md: string) => void;
   setNotionUrl: (url: string) => void;
+  setNotionPublicUrl: (url: string) => void;
 };
 
 export const useInterviewStore = create<State>((set) => ({
@@ -23,10 +25,12 @@ export const useInterviewStore = create<State>((set) => ({
   topics: [],
   generatedMarkdown: undefined,
   notionUrl: undefined,
+  notionPublicUrl: undefined,
   setInput: (input) => set(() => ({ ...input })),
   setTopics: (topics) => set({ topics }),
   updateTopic: (id, patch) =>
     set((state) => ({ topics: state.topics.map((t) => (t.id === id ? { ...t, ...patch } : t)) })),
   setGenerated: (md) => set({ generatedMarkdown: md }),
   setNotionUrl: (url) => set({ notionUrl: url }),
+  setNotionPublicUrl: (url) => set({ notionPublicUrl: url }),
 }));

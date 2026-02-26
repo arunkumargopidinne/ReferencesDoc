@@ -12,11 +12,20 @@ export async function POST(req: Request) {
     if (!title || !markdown) return NextResponse.json({ error: 'Missing title or markdown' }, { status: 400 });
 
     const notionRes = await createNotionPage(title, markdown);
-    // Notion API returns the page object. Try to build a link if possible.
-    const url = notionRes?.url || `https://www.notion.so/${notionRes?.id?.replace(/-/g, '')}`;
-    return NextResponse.json({ url, raw: notionRes });
-  } catch (err: any) {
-    const message = err?.message || 'Server error';
+    const fallbackUrl = `https://www.notion.so/${notionRes?.id?.replace(/-/g, '')}`;
+    const url = notionRes?.url || fallbackUrl;
+    const publicUrl = notionRes?.public_url || '';
+    const preferredUrl = publicUrl || url;
+
+    return NextResponse.json({
+      id: notionRes?.id || '',
+      url,
+      publicUrl,
+      preferredUrl,
+      raw: notionRes,
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Server error';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

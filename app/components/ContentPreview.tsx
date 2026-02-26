@@ -21,10 +21,11 @@ export default function ContentPreview(){
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
-      useInterviewStore.getState().setNotionUrl(data.url || data.id || '');
+      useInterviewStore.getState().setNotionPublicUrl(data.publicUrl || '');
+      useInterviewStore.getState().setNotionUrl(data.preferredUrl || data.url || data.id || '');
       router.push('/result');
-    } catch (err: any) {
-      setError(err.message || 'Failed to create Notion page');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to create Notion page');
     } finally { setLoading(false); }
   }
 
