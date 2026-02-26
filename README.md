@@ -1,3 +1,37 @@
+# AI Interview Prep — local development
+
+Quick setup and environment guidance for running the app locally.
+
+Required environment variables
+- `OPENAI_API_KEY` — your OpenAI API key (required for AI features)
+- `NOTION_TOKEN` — Notion integration token (required to create pages)
+- `NOTION_DATABASE_ID` — (optional) Notion database id to create pages in a database
+- `OPENAI_MODEL` — (optional) model name, default used if unset
+
+Example `.env.local` (place in project root):
+
+```env
+OPENAI_API_KEY=sk-...yourkey...
+NOTION_TOKEN=secret_...yourtoken...
+NOTION_DATABASE_ID=your-database-id-optional
+OPENAI_MODEL=gpt-4o-mini
+```
+
+Install and run
+
+```bash
+npm install
+npm run dev
+```
+
+Notes
+- The server-side helpers check `OPENAI_API_KEY` at runtime; if the variable is missing, API endpoints that call OpenAI will return an error.
+- For a production deployment make sure environment variables are configured in your hosting provider (Vercel, Netlify, etc.).
+- The project uses the Next.js App Router; pages live under `app/`.
+
+Next suggested steps
+- Wire up Tailwind if you want improved styling (project already includes `globals.css`).
+- Improve Notion block conversion to translate Markdown into Notion blocks (currently a simple paragraph is used).
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
