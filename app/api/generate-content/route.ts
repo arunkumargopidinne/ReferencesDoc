@@ -1,0 +1,46 @@
+
+import { NextResponse } from "next/server";
+import { callOpenAI } from "../../../src/lib/openai";
+
+export async function POST(req: Request) {
+  const apiKey = process.env.OPENAI_API_KEY || process.env.NEXT_PUBLIC_OPENAI_API_KEY || '';
+
+  try {
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: "Server misconfiguration: OPENAI_API_KEY is not set" },
+        { status: 500 }
+      );
+    }
+
+    const body = await req.json();
+    const { topics } = body;
+
+    if (!topics || !Array.isArray(topics)) {
+      return NextResponse.json(
+        { error: "Missing topics" },
+        { status: 400 }
+      );
+    }
+
+    const prompt = `You are an interview prep assistant...
+${topics.map((t: any) => "- " + t.title).join("\n")}`;
+
+    const content = await callOpenAI(
+      [
+        { role: "system", content: "You output Markdown content only." },
+        { role: "user", content: prompt },
+      ],
+      { temperature: 0.3 }
+    );
+
+    return NextResponse.json({ markdown: content });
+
+  } catch (err: any) {
+    console.error(err); // 👈 add this for debugging
+    return NextResponse.json(
+      { error: err?.message || "Server error" },
+      { status: 500 }
+    );
+  }
+}
