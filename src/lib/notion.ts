@@ -25,7 +25,6 @@ export async function createNotionPage(title: string, markdownContent: string) {
 
   const children = chunks.map((chunk) => ({
     object: 'block',
-    type: 'paragraph',
     paragraph: { rich_text: [{ type: 'text', text: { content: chunk } }] },
   }));
 

@@ -12,7 +12,9 @@ async function tryLoadDotenv() {
     const exists = fs.existsSync(p);
     console.error('tryLoadDotenv:', p, 'exists=', exists);
     if (!exists) return;
-    const txt = fs.readFileSync(p, 'utf8');
+    let txt = fs.readFileSync(p, 'utf8');
+    // Strip UTF-8 BOM if present which can break line-start regexes on Windows
+    if (txt.charCodeAt(0) === 0xFEFF) txt = txt.slice(1);
     console.error('tryLoadDotenv: .env.local length=', txt.length);
     txt.split(/\r?\n/).forEach((line) => {
       const m = line.match(/^\s*([A-Za-z0-9_]+)\s*=\s*(.*)\s*$/);
