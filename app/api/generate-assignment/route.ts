@@ -514,34 +514,14 @@ function stripOuterMarkdownFence(text: string) {
 }
 
 /**
- * Notion-friendly cleanup:
- * - removes **bold markers**
- * - removes fenced code markers ``` (and ```lang)
- * - removes headings (#, ##, ###...) so Notion won't create heading blocks
- * - removes horizontal rules
- *
- * NOTE: This WILL remove the fence markers around code. The code text remains.
+ * Keeps markdown formatting intact while removing accidental wrapper fences
+ * and excessive blank lines.
  */
-function cleanForNotion(text: string) {
-  let out = text.replace(/\r\n/g, "\n");
-
-  // Remove bold markers
-  out = out.replaceAll("**", "");
-
-  // Remove ALL fenced code markers (opening + closing)
-  out = out.replace(/^```[^\n]*$/gm, ""); // lines like ```js / ```markdown / ```
-  out = out.replace(/^```$/gm, ""); // safety
-
-  // Remove headings
-  out = out.replace(/^\s{0,3}#{1,6}\s+/gm, "");
-
-  // Remove horizontal rules
-  out = out.replace(/^\s*(---|\*\*\*|___)\s*$/gm, "");
-
-  // Cleanup excessive blank lines
+function normalizeMarkdown(text: string) {
+  let out = text.replace(/\r\n/g, "\n").trim();
+  out = stripOuterMarkdownFence(out);
   out = out.replace(/\n{3,}/g, "\n\n").trim();
-
-  return out.trim();
+  return out;
 }
 
 function buildPrompt(assignmentText: string, companyName?: string) {
@@ -635,14 +615,14 @@ ${fullMarkdown.slice(-12000)}
     // Ensure no accidental outer wrapper remains
     fullMarkdown = stripOuterMarkdownFence(fullMarkdown);
 
-    // Apply Notion cleanup LAST
-    fullMarkdown = cleanForNotion(fullMarkdown);
+    // Keep markdown formatting for Notion block conversion.
+    fullMarkdown = normalizeMarkdown(fullMarkdown);
 
     return NextResponse.json({ markdown: fullMarkdown });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error(err);
     return NextResponse.json(
-      { error: err?.message || "Server error" },
+      { error: err instanceof Error ? err.message : "Server error" },
       { status: 500 }
     );
   }

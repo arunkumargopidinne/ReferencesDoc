@@ -1,143 +1,117 @@
-// import { NextResponse } from "next/server";
-
-// // We process the PDF on the server so we can use Node APIs and keep the logic
-// // out of the browser. The route handler runs in the Node runtime, which is
-// // why we set `runtime = "nodejs"` below. This lets us import `pdfjs-dist`
-// // and avoid the DOM-specific bundle.
-
-// export const runtime = "nodejs";
-
-// // we will load pdfjs inside the handler via dynamic import. this keeps the
-// // module off the normal bundler path and works reliably with Turbopack.
-// // (the earlier static import caused errors when the module path changed.)
-
-// // placeholder variable; real value is assigned in POST()
-// let getDocument: typeof import("pdfjs-dist/legacy/build/pdf.mjs").getDocument;
-
-
-// export async function POST(req: Request) {
-//   try {
-//     // dynamically load pdfjs so bundler doesn't choke on the mjs file path
-//     if (!getDocument) {
-//       const mod = await import("pdfjs-dist/legacy/build/pdf.mjs");
-//       getDocument = mod.getDocument;
-//     }
-
-//     const form = await req.formData();
-//     const file = form.get("file") as File | null;
-//     if (!file) {
-//       return NextResponse.json(
-//         { error: "No file provided" },
-//         { status: 400 }
-//       );
-//     }
-
-//     const arrayBuffer = await file.arrayBuffer();
-//     const uint8 = new Uint8Array(arrayBuffer);
-
-//     // load the document
-//     // disable workers in Node environment; otherwise pdfjs will try to load
-//     // a worker script relative to the server bundle path, which doesn't exist.
-//     const loadingTask = getDocument({ data: uint8, disableWorker: true });
-//     const pdf = await loadingTask.promise;
-
-//     let fullText = "";
-
-//     for (let i = 1; i <= pdf.numPages; i++) {
-//       const page = await pdf.getPage(i);
-//       const content = await page.getTextContent();
-//       const strings = content.items.map((item: any) => item.str);
-//       fullText += strings.join(" ") + "\n\n";
-//     }
-
-//     const trimmed = fullText.trim();
-//     const responseBody: { text: string; warning?: string } = { text: trimmed };
-
-//     if (!trimmed) {
-//       // no readable text could be extracted – likely a scanned/image PDF
-//       responseBody.warning =
-//         "No readable text found in this PDF. It may be a scanned/image-based file.";
-//     }
-
-//     return NextResponse.json(responseBody);
-//   } catch (err: any) {
-//     console.error("extract-pdf-text error:", err);
-//     return NextResponse.json(
-//       { error: err?.message || "Failed to extract PDF text" },
-//       { status: 500 }
-//     );
-//   }
-// }
-
-
-import { NextResponse } from "next/server";
 import { createRequire } from "module";
-import { pathToFileURL } from "url";
+import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
-// Cache the imported module across requests in dev
-let pdfjs: typeof import("pdfjs-dist/legacy/build/pdf.mjs") | null = null;
+const require = createRequire(import.meta.url);
+let pdfParse:
+  | ((
+      dataBuffer: Buffer,
+      options?: Record<string, unknown>
+    ) => Promise<{ text?: string; numpages?: number }>)
+  | null = null;
 
-async function getPdfJs() {
-  if (pdfjs) return pdfjs;
+type CanvasPolyfills = {
+  DOMMatrix?: unknown;
+  ImageData?: unknown;
+  Path2D?: unknown;
+};
 
-  // Dynamic import so bundler doesn't choke
-  pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+function installCanvasPolyfills() {
+  // pdf-parse@2 pulls pdf.js internals that may expect these globals in Node.
+  // We provide them from @napi-rs/canvas before loading pdf-parse.
+  const canvas = require("@napi-rs/canvas") as CanvasPolyfills;
+  const g = globalThis as Record<string, unknown>;
 
-  // ✅ Fix: point workerSrc to the real worker in node_modules (not .next chunks)
-  const require = createRequire(import.meta.url);
-  const workerFsPath = require.resolve("pdfjs-dist/legacy/build/pdf.worker.mjs");
-  pdfjs.GlobalWorkerOptions.workerSrc = pathToFileURL(workerFsPath).toString();
+  if (typeof g.DOMMatrix === "undefined" && canvas.DOMMatrix) {
+    g.DOMMatrix = canvas.DOMMatrix;
+  }
+  if (typeof g.ImageData === "undefined" && canvas.ImageData) {
+    g.ImageData = canvas.ImageData;
+  }
+  if (typeof g.Path2D === "undefined" && canvas.Path2D) {
+    g.Path2D = canvas.Path2D;
+  }
+}
 
-  return pdfjs;
+function getPdfParse() {
+  if (pdfParse) {
+    return pdfParse;
+  }
+
+  installCanvasPolyfills();
+
+  const loaded = require("pdf-parse") as
+    | ((
+        dataBuffer: Buffer,
+        options?: Record<string, unknown>
+      ) => Promise<{ text?: string; numpages?: number }>)
+    | { default?: unknown };
+
+  if (typeof loaded === "function") {
+    pdfParse = loaded;
+    return pdfParse;
+  }
+
+  if (loaded && typeof loaded === "object" && typeof loaded.default === "function") {
+    pdfParse = loaded.default as (
+      dataBuffer: Buffer,
+      options?: Record<string, unknown>
+    ) => Promise<{ text?: string; numpages?: number }>;
+    return pdfParse;
+  }
+
+  throw new Error("Failed to initialize pdf parser");
+}
+
+function isPdfFile(file: File) {
+  return file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+}
+
+function getErrorMessage(err: unknown) {
+  if (err instanceof Error) {
+    return err.message;
+  }
+
+  return "Failed to extract PDF text";
 }
 
 export async function POST(req: Request) {
   try {
     const form = await req.formData();
-    const file = form.get("file") as File | null;
+    const entry = form.get("file");
 
-    if (!file) {
+    if (!(entry instanceof File)) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    const uint8 = new Uint8Array(await file.arrayBuffer());
-
-    const mod = await getPdfJs();
-    const loadingTask = mod.getDocument({
-      data: uint8,
-      // keep as an extra safeguard (but workerSrc fix is the key)
-      disableWorker: true,
-    });
-
-    const pdf = await loadingTask.promise;
-
-    let fullText = "";
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const content = await page.getTextContent();
-      const strings = (content.items as any[])
-        .map((item) => (typeof item?.str === "string" ? item.str : ""))
-        .filter(Boolean);
-
-      fullText += strings.join(" ") + "\n\n";
+    if (!isPdfFile(entry)) {
+      return NextResponse.json(
+        { error: "Only PDF files are supported on this endpoint." },
+        { status: 400 }
+      );
     }
 
-    const trimmed = fullText.trim();
-    const responseBody: { text: string; warning?: string } = { text: trimmed };
+    const buffer = Buffer.from(await entry.arrayBuffer());
+    const parser = getPdfParse();
+    const parsed = await parser(buffer);
 
-    if (!trimmed) {
+    const text = (parsed.text || "").trim();
+    const pages = typeof parsed.numpages === "number" ? parsed.numpages : 0;
+
+    const responseBody: { text: string; pages: number; warning?: string } = {
+      text,
+      pages,
+    };
+
+    if (!text) {
       responseBody.warning =
-        "No readable text found in this PDF. It may be scanned/image-based (OCR required).";
+        "No readable text found in this PDF. It may be scanned/image-based and require OCR.";
     }
 
     return NextResponse.json(responseBody);
-  } catch (err: any) {
-    console.error("extract-pdf-text error:", err);
-    return NextResponse.json(
-      { error: err?.message || "Failed to extract PDF text" },
-      { status: 500 }
-    );
+  } catch (err: unknown) {
+    const message = getErrorMessage(err);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

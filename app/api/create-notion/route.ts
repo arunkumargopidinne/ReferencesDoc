@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import { createNotionPage } from '../../../src/lib/notion';
 
+function getStringProp(obj: unknown, key: string): string {
+  if (!obj || typeof obj !== "object") return "";
+  const value = (obj as Record<string, unknown>)[key];
+  return typeof value === "string" ? value : "";
+}
+
 export async function POST(req: Request) {
   const notionToken = process.env.NOTION_TOKEN || process.env.NEXT_PUBLIC_NOTION_TOKEN || '';
   try {
@@ -12,13 +18,14 @@ export async function POST(req: Request) {
     if (!title || !markdown) return NextResponse.json({ error: 'Missing title or markdown' }, { status: 400 });
 
     const notionRes = await createNotionPage(title, markdown);
-    const fallbackUrl = `https://www.notion.so/${notionRes?.id?.replace(/-/g, '')}`;
-    const url = notionRes?.url || fallbackUrl;
-    const publicUrl = notionRes?.public_url || '';
+    const notionId = getStringProp(notionRes, "id");
+    const fallbackUrl = notionId ? `https://www.notion.so/${notionId.replace(/-/g, '')}` : "";
+    const url = getStringProp(notionRes, "url") || fallbackUrl;
+    const publicUrl = getStringProp(notionRes, "public_url");
     const preferredUrl = publicUrl || url;
 
     return NextResponse.json({
-      id: notionRes?.id || '',
+      id: notionId,
       url,
       publicUrl,
       preferredUrl,

@@ -1,71 +1,118 @@
-require('dotenv').config();
+import { Client } from "@notionhq/client";
+import { markdownToBlocks } from "@tryfabric/martian";
 
-// Server-side Notion helper
-// Read credentials from environment variables (do NOT commit tokens to source)
-const NOTION_TOKEN = process.env.NOTION_TOKEN || process.env.NEXT_PUBLIC_NOTION_TOKEN || '';
-const NOTION_DATABASE_ID = process.env.NOTION_DATABASE_ID || process.env.NEXT_PUBLIC_NOTION_DATABASE_ID || '';
+const MAX_CHILDREN_PER_REQUEST = 100;
+const MAX_RICH_TEXT_LENGTH = 2000;
 
-if (!NOTION_TOKEN) {
-  throw new Error('Missing NOTION_TOKEN in environment. Set NOTION_TOKEN in your .env.local and restart the dev server.');
+type CreatePageParams = Parameters<Client["pages"]["create"]>[0];
+type CreatePageChildren = NonNullable<CreatePageParams["children"]>;
+type CreatePageChild = CreatePageChildren[number];
+type AppendChildrenParams = Parameters<Client["blocks"]["children"]["append"]>[0];
+type AppendChildren = AppendChildrenParams["children"];
+
+function chunkArray<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    out.push(arr.slice(i, i + size));
+  }
+  return out;
 }
-if (!NOTION_DATABASE_ID) {
-  throw new Error('Missing NOTION_DATABASE_ID in environment. Set NOTION_DATABASE_ID in your .env.local and restart the dev server.');
+
+function stripOuterFence(markdown: string) {
+  let out = markdown.trim();
+  const hasOuterFence =
+    /^```(?:markdown|md|text)?\s*\n/i.test(out) && /\n```$/.test(out);
+
+  if (hasOuterFence) {
+    out = out.replace(/^```(?:markdown|md|text)?\s*\n/i, "");
+    out = out.replace(/\n```$/, "");
+  }
+
+  return out.trim();
+}
+
+function buildFallbackParagraphBlocks(text: string): CreatePageChild[] {
+  const chunks: string[] = [];
+  const normalized = text.replace(/\r\n/g, "\n").trim();
+
+  for (let i = 0; i < normalized.length; i += MAX_RICH_TEXT_LENGTH) {
+    chunks.push(normalized.slice(i, i + MAX_RICH_TEXT_LENGTH));
+  }
+
+  if (!chunks.length) {
+    return [];
+  }
+
+  return chunks.map((chunk) => ({
+    object: "block",
+    type: "paragraph",
+    paragraph: {
+      rich_text: [
+        {
+          type: "text",
+          text: { content: chunk },
+        },
+      ],
+    },
+  }));
 }
 
 export async function createNotionPage(title: string, markdownContent: string) {
-  const url = 'https://api.notion.com/v1/pages';
+  const notionToken =
+    process.env.NOTION_TOKEN || process.env.NEXT_PUBLIC_NOTION_TOKEN || "";
+  const notionDatabaseId =
+    process.env.NOTION_DATABASE_ID ||
+    process.env.NEXT_PUBLIC_NOTION_DATABASE_ID ||
+    "";
 
-  // Notion restricts paragraph text to 2000 characters per rich_text item.
-  // If the generated content exceeds that, split it into multiple blocks.
-  const maxLen = 2000;
-  const chunks: string[] = [];
-  for (let i = 0; i < markdownContent.length; i += maxLen) {
-    chunks.push(markdownContent.slice(i, i + maxLen));
+  if (!notionToken) {
+    throw new Error(
+      "Missing NOTION_TOKEN in environment. Set NOTION_TOKEN in your .env.local and restart the dev server."
+    );
   }
 
-  const children = chunks.map((chunk) => ({
-    object: 'block',
-    paragraph: { rich_text: [{ type: 'text', text: { content: chunk } }] },
-  }));
+  if (!notionDatabaseId) {
+    throw new Error(
+      "Missing NOTION_DATABASE_ID in environment. Set NOTION_DATABASE_ID in your .env.local and restart the dev server."
+    );
+  }
 
-  const body = {
-    parent: NOTION_DATABASE_ID ? { database_id: NOTION_DATABASE_ID } : { type: 'workspace' },
+  const notion = new Client({ auth: notionToken });
+
+  const normalizedMarkdown = stripOuterFence((markdownContent || "").trim());
+  let blocks: CreatePageChild[] = [];
+
+  try {
+    blocks = markdownToBlocks(normalizedMarkdown) as unknown as CreatePageChild[];
+  } catch {
+    blocks = buildFallbackParagraphBlocks(normalizedMarkdown);
+  }
+
+  if (!Array.isArray(blocks) || blocks.length === 0) {
+    blocks = buildFallbackParagraphBlocks(normalizedMarkdown);
+  }
+
+  const blockChunks = chunkArray(blocks, MAX_CHILDREN_PER_REQUEST);
+  const pageTitle = (title || "Untitled").slice(0, 200);
+
+  const response = await notion.pages.create({
+    parent: { database_id: notionDatabaseId },
     properties: {
       Name: {
-        title: [{ text: { content: title } }],
+        title: [{ text: { content: pageTitle } }],
       },
     },
-    children,
-  };
-
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${NOTION_TOKEN}`,
-      'Content-Type': 'application/json',
-      'Notion-Version': '2022-06-28',
-    },
-    body: JSON.stringify(body),
+    children: (blockChunks[0] ?? []) as unknown as CreatePageChildren,
   });
 
-  if (!res.ok) {
-    const txt = await res.text();
-    // Try to parse Notion JSON error for better guidance
-    let parsed: any = null;
-    try { parsed = JSON.parse(txt); } catch (_) { parsed = null; }
-
-    if (res.status === 404 && parsed?.code === 'object_not_found') {
-      throw new Error(
-        `Notion error 404: Could not find database with ID: ${NOTION_DATABASE_ID || '(no id set)'}.` +
-        ' Make sure the ID is the correct database ID and that you have shared the database with your integration (Share → Invite your integration).' +
-        ' To obtain the database ID: open the database in Notion, click "Share" → "Copy link", then extract the 32-character ID from the URL (format 8-4-4-4-12 or without hyphens).'
-      );
+  if (blockChunks.length > 1) {
+    for (let i = 1; i < blockChunks.length; i++) {
+      await notion.blocks.children.append({
+        block_id: response.id,
+        children: blockChunks[i] as unknown as AppendChildren,
+      });
     }
-
-    throw new Error(`Notion error: ${res.status} ${txt}`);
   }
 
-  const data = await res.json();
-  // Return shareable URL if available, otherwise full response
-  return data;
+  return response;
 }

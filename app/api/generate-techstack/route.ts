@@ -3,6 +3,12 @@ import { callOpenAI } from "../../../src/lib/openai";
 import { createNotionPage } from "../../../src/lib/notion";
 import { v4 as uuidv4 } from "uuid";
 
+function getStringProp(obj: unknown, key: string): string {
+  if (!obj || typeof obj !== "object") return "";
+  const value = (obj as Record<string, unknown>)[key];
+  return typeof value === "string" ? value : "";
+}
+
 export async function POST(req: Request) {
   try {
     const notionToken =
@@ -128,16 +134,19 @@ export async function POST(req: Request) {
     // ---- Create Notion page ----
     const notionRes = await createNotionPage(title, markdown);
 
-    const fallbackUrl = `https://www.notion.so/${notionRes?.id?.replace(/-/g, "")}`;
-    const url = notionRes?.url || fallbackUrl;
-    const publicUrl = notionRes?.public_url || "";
+    const notionId = getStringProp(notionRes, "id");
+    const fallbackUrl = notionId
+      ? `https://www.notion.so/${notionId.replace(/-/g, "")}`
+      : "";
+    const url = getStringProp(notionRes, "url") || fallbackUrl;
+    const publicUrl = getStringProp(notionRes, "public_url");
     const preferredUrl = publicUrl || url;
 
     return NextResponse.json({
       preferredUrl,
       url,
       publicUrl,
-      id: notionRes?.id || "",
+      id: notionId,
       topics,
     });
   } catch (err: any) {

@@ -1,85 +1,89 @@
 "use client";
+
 import { useState } from "react";
+
+type NotionCreateResponse = {
+  preferredUrl?: string;
+  publicUrl?: string;
+  url?: string;
+  error?: string;
+};
 
 export default function TechStackGenerator() {
   const [company, setCompany] = useState("");
   const [techs, setTechs] = useState("");
-
-  // NEW inputs (because the “above flow” needs them)
-  const [jobDescription, setJobDescription] = useState("");
-
   const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState<string>("");
+  const [status, setStatus] = useState("Idle");
   const [error, setError] = useState<string | null>(null);
+  const [notionUrl, setNotionUrl] = useState("");
 
   async function handleSubmit() {
     setError(null);
+    setNotionUrl("");
     setLoading(true);
-    setStatus("");
-
-    // ✅ Open a tab immediately (prevents popup blocker)
-    const newTab = window.open("about:blank", "_blank");
-    if (newTab) {
-      newTab.document.title = "Generating Notion Doc…";
-      newTab.document.body.innerHTML = `
-        <div style="font-family: system-ui; padding: 24px;">
-          <h2 style="margin:0 0 8px;">Generating your Notion document…</h2>
-          <p style="margin:0; opacity:0.75;">Please keep this tab open.</p>
-        </div>`;
-    }
 
     try {
-      // 1) Extract topics (UNCHANGED API)
-      setStatus("Extracting topics…");
       const companyName = company;
       const techStack = techs;
 
+      setStatus("1/3 Extracting topics from tech stack...");
       const resTopics = await fetch("/api/generate-techstack", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ companyName, techStack }),
       });
-      if (!resTopics.ok) throw new Error(await resTopics.text());
-      const dataTopics = await resTopics.json();
-      const topics: string[] = dataTopics.topics || [];
-      if (!topics.length) throw new Error("No topics extracted");
 
-      // 2) Generate content (UNCHANGED API)
-      setStatus("Generating content…");
+      if (!resTopics.ok) {
+        throw new Error(await resTopics.text());
+      }
+
+      const dataTopics = await resTopics.json();
+      const topics = dataTopics.topics || [];
+      if (!topics.length) {
+        throw new Error("No topics extracted");
+      }
+
+      setStatus("2/3 Generating content...");
       const resContent = await fetch("/api/generate-content", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ topics }),
       });
-      if (!resContent.ok) throw new Error(await resContent.text());
-      const dataContent = await resContent.json();
-      const markdown: string = dataContent.markdown || "";
-      if (!markdown.trim()) throw new Error("No content generated");
 
-      // 3) Create Notion page (UNCHANGED API)
-      setStatus("Creating Notion page…");
+      if (!resContent.ok) {
+        throw new Error(await resContent.text());
+      }
+
+      const dataContent = await resContent.json();
+      const markdown: string = (dataContent.markdown || "").trim();
+      if (!markdown) {
+        throw new Error("No content generated");
+      }
+
+      setStatus("3/3 Creating Notion page...");
       const resNotion = await fetch("/api/create-notion", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: `${companyName} - Interview Prep`, markdown }),
       });
-      if (!resNotion.ok) throw new Error(await resNotion.text());
-      const dataNotion = await resNotion.json();
 
-      const url = dataNotion.preferredUrl || dataNotion.url || dataNotion.publicUrl || "";
-      if (!url) {
-        throw new Error(`Notion URL not returned. Response: ${JSON.stringify(dataNotion)}`);
+      const dataNotion = (await resNotion.json()) as NotionCreateResponse;
+      if (!resNotion.ok) {
+        throw new Error(dataNotion.error || "Failed to create Notion page");
       }
 
-      // ✅ Navigate the already-opened tab
-      if (newTab) newTab.location.href = url;
-      else window.location.assign(url);
-    } catch (err: any) {
-      if (newTab) newTab.close();
-      setError(err?.message || "Failed to generate Notion page");
+      const url = dataNotion.preferredUrl || dataNotion.publicUrl || dataNotion.url || "";
+      if (!url) {
+        throw new Error("Notion URL not returned from API");
+      }
+
+      setNotionUrl(url);
+      setStatus("Completed. Notion page created successfully.");
+    } catch (err: unknown) {
+      setStatus("Failed.");
+      setError(err instanceof Error ? err.message : "Failed to generate Notion page");
     } finally {
       setLoading(false);
-      setStatus("");
     }
   }
 
@@ -89,13 +93,31 @@ export default function TechStackGenerator() {
         display: "flex",
         flexDirection: "column",
         gap: "1rem",
-        maxWidth: "40rem",
+        maxWidth: "48rem",
         margin: "0 auto",
       }}
     >
-      <h2 style={{ fontSize: "1.5rem", fontWeight: 600, color: "#161616" }}>
+      <h2 style={{ fontSize: "1.5rem", fontWeight: 700, color: "#161616" }}>
         Tech Stacks Based Generation
       </h2>
+
+      <div
+        aria-live="polite"
+        style={{
+          minHeight: "2.5rem",
+          display: "flex",
+          alignItems: "center",
+          padding: "0.625rem 0.75rem",
+          borderRadius: "8px",
+          border: "1px solid rgba(0,0,0,0.08)",
+          background: "rgba(255,255,255,0.78)",
+          color: "#5B0E14",
+          fontSize: "0.9rem",
+        }}
+      >
+        <span style={{ fontWeight: 700, marginRight: "0.4rem" }}>Status:</span>
+        <span>{status}</span>
+      </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
         <label style={{ fontSize: "0.875rem", fontWeight: 500, color: "#161616" }}>
@@ -138,18 +160,39 @@ export default function TechStackGenerator() {
       </div>
 
       {error && <div style={{ color: "#dc2626", fontSize: "0.875rem" }}>{error}</div>}
-      {loading && status && <div style={{ color: "#5B0E14", fontSize: "0.875rem" }}>{status}</div>}
+
+      {notionUrl && (
+        <a
+          href={notionUrl}
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            width: "fit-content",
+            textDecoration: "none",
+            fontSize: "0.9rem",
+            fontWeight: 600,
+            color: "#5B0E14",
+            padding: "0.55rem 0.85rem",
+            borderRadius: "8px",
+            border: "1px solid rgba(91,14,20,0.24)",
+            background: "rgba(255,255,255,0.78)",
+          }}
+        >
+          Open Created Notion Page
+        </a>
+      )}
 
       <button
         onClick={handleSubmit}
-        disabled={loading}
+        disabled={loading || !techs.trim()}
         style={{
           display: "inline-flex",
           alignItems: "center",
+          justifyContent: "center",
           gap: "0.6rem",
-          padding: "0.6rem 1rem",
+          padding: "0.7rem 1rem",
           borderRadius: "10px",
-          fontWeight: 600,
+          fontWeight: 700,
           cursor: loading ? "not-allowed" : "pointer",
           border: "none",
           background: loading
@@ -159,7 +202,7 @@ export default function TechStackGenerator() {
           opacity: loading ? 0.85 : 1,
         }}
       >
-        {loading ? "Generating Notion Doc…" : "Generate Notion Doc"}
+        {loading ? "Working..." : "Generate Notion Doc"}
       </button>
     </div>
   );

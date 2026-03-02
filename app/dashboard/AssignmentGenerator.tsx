@@ -1,561 +1,78 @@
-// // // ✅ Updated Client Component: AssignmentGenerator.tsx
-// // // Adds: PDF upload → server-side extract text → fills textarea automatically
-
-// // "use client";
-// // import { useRef, useState } from "react";
-
-// // export default function AssignmentGenerator() {
-// //   const [company, setCompany] = useState("");
-// //   const [text, setText] = useState("");
-// //   const [loading, setLoading] = useState(false);
-// //   const [status, setStatus] = useState<string>("");
-// //   const [markdown, setMarkdown] = useState<string | null>(null);
-// //   const [error, setError] = useState<string | null>(null);
-
-// //   const fileRef = useRef<HTMLInputElement | null>(null);
-
-// //   async function extractFromPdf(file: File) {
-// //     setError(null);
-// //     setStatus("Extracting text from PDF…");
-// //     setLoading(true);
-
-// //     try {
-// //       const fd = new FormData();
-// //       fd.append("file", file);
-
-// //       const res = await fetch("/api/extract-pdf-text", {
-// //         method: "POST",
-// //         body: fd,
-// //       });
-
-// //       if (!res.ok) throw new Error(await res.text());
-// //       const data = await res.json();
-
-// //       const extracted = (data?.text || "").trim();
-// //       if (!extracted) throw new Error("No readable text found in this PDF.");
-
-// //       // Put extracted text into textarea (append or replace — choose one)
-// //       setText(extracted);
-// //     } catch (err: any) {
-// //       setError(err?.message || "Failed to extract PDF text");
-// //     } finally {
-// //       setLoading(false);
-// //       setStatus("");
-// //       if (fileRef.current) fileRef.current.value = "";
-// //     }
-// //   }
-
-// //   async function generate() {
-// //     setError(null);
-// //     setMarkdown(null);
-// //     setStatus("Generating reference doc…");
-// //     setLoading(true);
-
-// //     try {
-// //       const res = await fetch("/api/generate-assignment", {
-// //         method: "POST",
-// //         headers: { "Content-Type": "application/json" },
-// //         body: JSON.stringify({ companyName: company, assignmentText: text }),
-// //       });
-
-// //       if (!res.ok) throw new Error(await res.text());
-// //       const data = await res.json();
-// //       setMarkdown(data.markdown || "");
-// //     } catch (err: any) {
-// //       setError(err?.message || "Generation failed");
-// //     } finally {
-// //       setLoading(false);
-// //       setStatus("");
-// //     }
-// //   }
-
-// //   async function publishToNotion() {
-// //     if (!markdown) return;
-
-// //     setError(null);
-// //     setStatus("Creating Notion page…");
-// //     setLoading(true);
-
-// //     // ✅ open tab immediately to avoid popup blocker
-// //     const newTab = window.open("about:blank", "_blank");
-// //     if (newTab) {
-// //       newTab.document.title = "Creating Notion Page…";
-// //       newTab.document.body.innerHTML =
-// //         `<div style="font-family:system-ui;padding:24px;">
-// //           <h2 style="margin:0 0 8px;">Creating your Notion page…</h2>
-// //           <p style="margin:0;opacity:.75;">Please keep this tab open.</p>
-// //         </div>`;
-// //     }
-
-// //     try {
-// //       const res = await fetch("/api/create-notion", {
-// //         method: "POST",
-// //         headers: { "Content-Type": "application/json" },
-// //         body: JSON.stringify({ title: `${company} - Assignment Reference`, markdown }),
-// //       });
-
-// //       if (!res.ok) throw new Error(await res.text());
-// //       const data = await res.json();
-// //       const url = data.preferredUrl || data.url || data.publicUrl || "";
-
-// //       if (!url) throw new Error("Notion URL not returned from API.");
-
-// //       if (newTab) newTab.location.href = url;
-// //       else window.location.assign(url);
-// //     } catch (err: any) {
-// //       if (newTab) newTab.close();
-// //       setError(err?.message || "Failed to publish");
-// //     } finally {
-// //       setLoading(false);
-// //       setStatus("");
-// //     }
-// //   }
-
-// //   return (
-// //     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-// //       <h2 style={{ fontSize: "1.5rem", fontWeight: 600, color: "#161616" }}>
-// //         Assignment Reference Doc
-// //       </h2>
-
-// //       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-// //         <label style={{ fontSize: "0.875rem", fontWeight: 500, color: "#161616" }}>Company</label>
-// //         <input
-// //           style={{
-// //             width: "100%",
-// //             padding: "0.625rem",
-// //             borderRadius: "6px",
-// //             border: "1px solid rgba(0,0,0,0.1)",
-// //             fontSize: "0.95rem",
-// //             transition: "box-shadow 180ms ease",
-// //             color: "#161616",
-// //             backgroundColor: "#fff",
-// //           }}
-// //           onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 3px rgba(91, 14, 20, 0.1)")}
-// //           onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
-// //           value={company}
-// //           onChange={(e) => setCompany(e.target.value)}
-// //           placeholder="Company name"
-// //         />
-// //       </div>
-
-// //       {/* ✅ PDF Upload */}
-// //       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-// //         <label style={{ fontSize: "0.875rem", fontWeight: 500, color: "#161616" }}>
-// //           Upload PDF (optional)
-// //         </label>
-// //         <input
-// //           ref={fileRef}
-// //           type="file"
-// //           accept="application/pdf"
-// //           disabled={loading}
-// //           onChange={(e) => {
-// //             const f = e.target.files?.[0];
-// //             if (f) extractFromPdf(f);
-// //           }}
-// //         />
-// //         <div style={{ fontSize: "0.8rem", opacity: 0.75, color: "#161616" }}>
-// //           Upload a text-based PDF. (If it’s a scanned image PDF, you’ll need OCR.)
-// //         </div>
-// //       </div>
-
-// //       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-// //         <label style={{ fontSize: "0.875rem", fontWeight: 500, color: "#161616" }}>
-// //           Assignment text / paste excerpt
-// //         </label>
-// //         <textarea
-// //           style={{
-// //             width: "100%",
-// //             height: "160px",
-// //             padding: "0.625rem",
-// //             borderRadius: "6px",
-// //             border: "1px solid rgba(0,0,0,0.1)",
-// //             fontSize: "0.95rem",
-// //             fontFamily: "inherit",
-// //             transition: "box-shadow 180ms ease",
-// //             resize: "none",
-// //             color: "#161616",
-// //             backgroundColor: "#fff",
-// //           }}
-// //           onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 3px rgba(91, 14, 20, 0.1)")}
-// //           onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
-// //           value={text}
-// //           onChange={(e) => setText(e.target.value)}
-// //           placeholder="Paste assignment or extract from PDF"
-// //         />
-// //       </div>
-
-// //       <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
-// //         <button
-// //           onClick={generate}
-// //           disabled={loading || !text.trim()}
-// //           style={{
-// //             display: "inline-flex",
-// //             alignItems: "center",
-// //             gap: "0.6rem",
-// //             padding: "0.6rem 1rem",
-// //             borderRadius: "10px",
-// //             fontWeight: 600,
-// //             cursor: loading ? "not-allowed" : "pointer",
-// //             border: "none",
-// //             background: loading ? "rgba(16, 185, 129, 0.3)" : "linear-gradient(90deg, #10b981, #059669)",
-// //             color: "#FEFACD",
-// //             boxShadow: loading ? "none" : "0 6px 20px rgba(16,185,129,0.18)",
-// //             transition: "all 180ms ease",
-// //             opacity: loading ? 0.8 : 1,
-// //           }}
-// //         >
-// //           {loading ? "Working…" : "Generate Reference Doc"}
-// //         </button>
-
-// //         {status && <span style={{ fontSize: "0.875rem", color: "#161616" }}>{status}</span>}
-// //       </div>
-
-// //       {error && <div style={{ color: "#dc2626", fontSize: "0.875rem" }}>{error}</div>}
-
-// //       {markdown && (
-// //         <div style={{ marginTop: "1rem" }}>
-// //           <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "0.5rem", color: "#161616" }}>
-// //             Preview
-// //           </h3>
-// //           <div
-// //             style={{
-// //               marginTop: "0.5rem",
-// //               padding: "1rem",
-// //               background: "rgba(255,255,255,0.6)",
-// //               border: "1px solid rgba(0,0,0,0.1)",
-// //               borderRadius: "8px",
-// //               maxHeight: "384px",
-// //               overflowY: "auto",
-// //             }}
-// //           >
-// //             <pre
-// //               style={{
-// //                 whiteSpace: "pre-wrap",
-// //                 wordWrap: "break-word",
-// //                 fontFamily: "monospace",
-// //                 fontSize: "0.875rem",
-// //                 color: "#161616",
-// //               }}
-// //             >
-// //               {markdown}
-// //             </pre>
-// //           </div>
-
-// //           <div style={{ marginTop: "0.75rem" }}>
-// //             <button
-// //               onClick={publishToNotion}
-// //               disabled={loading}
-// //               style={{
-// //                 display: "inline-flex",
-// //                 alignItems: "center",
-// //                 gap: "0.6rem",
-// //                 padding: "0.6rem 1rem",
-// //                 borderRadius: "10px",
-// //                 fontWeight: 600,
-// //                 cursor: loading ? "not-allowed" : "pointer",
-// //                 border: "none",
-// //                 background: "linear-gradient(90deg, #F1E194, #fff6d8)",
-// //                 color: "#5B0E14",
-// //                 boxShadow: "0 8px 28px rgba(241,225,148,0.16)",
-// //                 transition: "all 180ms ease",
-// //                 opacity: loading ? 0.85 : 1,
-// //               }}
-// //             >
-// //               Create Notion Page
-// //             </button>
-// //           </div>
-// //         </div>
-// //       )}
-// //     </div>
-// //   );
-// // }
-
-// // components/AssignmentGenerator.tsx
-
-
-// "use client";
-// import { useRef, useState } from "react";
-
-// export default function AssignmentGenerator() {
-//   const [company, setCompany] = useState("");
-//   const [text, setText] = useState("");
-//   const [loading, setLoading] = useState(false);
-//   const [status, setStatus] = useState<string>("");
-//   const [markdown, setMarkdown] = useState<string | null>(null);
-//   const [error, setError] = useState<string | null>(null);
-
-//   const fileRef = useRef<HTMLInputElement | null>(null);
-
-//   async function extractFromPdf(file: File) {
-//     setError(null);
-//     setStatus("Extracting text from PDF…");
-//     setLoading(true);
-
-//     try {
-//       const fd = new FormData();
-//       fd.append("file", file);
-
-//       const res = await fetch("/api/extract-pdf-text", {
-//         method: "POST",
-//         body: fd,
-//       });
-
-//       const data = await res.json().catch(() => ({}));
-//       if (!res.ok) throw new Error(data?.error || "Failed to extract PDF text");
-
-//       if (data?.warning) {
-//         // show warning (scanned pdf case)
-//         setError(data.warning);
-//       }
-
-//       const extracted = (data?.text || "").trim();
-//       if (extracted) {
-//         setText(extracted);
-//         // automatically kick off generation once the text is available
-//         generate();
-//       }
-//     } catch (err: any) {
-//       setError(err?.message || "Failed to extract PDF text");
-//     } finally {
-//       setLoading(false);
-//       setStatus("");
-//       if (fileRef.current) fileRef.current.value = "";
-//     }
-//   }
-
-//   async function generate() {
-//     setError(null);
-//     setMarkdown(null);
-//     setStatus("Generating reference doc…");
-//     setLoading(true);
-
-//     try {
-//       const res = await fetch("/api/generate-assignment", {
-//         method: "POST",
-//         headers: { "Content-Type": "application/json" },
-//         body: JSON.stringify({ companyName: company, assignmentText: text }),
-//       });
-
-//       if (!res.ok) throw new Error(await res.text());
-//       const data = await res.json();
-//       setMarkdown(data.markdown || "");
-//     } catch (err: any) {
-//       setError(err?.message || "Generation failed");
-//     } finally {
-//       setLoading(false);
-//       setStatus("");
-//     }
-//   }
-
-//   async function publishToNotion() {
-//     if (!markdown) return;
-
-//     setError(null);
-//     setStatus("Creating Notion page…");
-//     setLoading(true);
-
-//     // ✅ open tab immediately (prevents popup block)
-//     const newTab = window.open("about:blank", "_blank");
-//     if (newTab) {
-//       newTab.document.title = "Creating Notion Page…";
-//       newTab.document.body.innerHTML =
-//         `<div style="font-family:system-ui;padding:24px;">
-//           <h2 style="margin:0 0 8px;">Creating your Notion page…</h2>
-//           <p style="margin:0;opacity:.75;">Please keep this tab open.</p>
-//         </div>`;
-//     }
-
-//     try {
-//       const res = await fetch("/api/create-notion", {
-//         method: "POST",
-//         headers: { "Content-Type": "application/json" },
-//         body: JSON.stringify({ title: `${company} - Assignment Reference`, markdown }),
-//       });
-
-//       const data = await res.json().catch(() => ({}));
-//       if (!res.ok) throw new Error(data?.error || "Failed to publish");
-
-//       const url = data.preferredUrl || data.url || data.publicUrl || "";
-//       if (!url) throw new Error("Notion URL not returned from API.");
-
-//       if (newTab) newTab.location.href = url;
-//       else window.location.assign(url);
-//     } catch (err: any) {
-//       if (newTab) newTab.close();
-//       setError(err?.message || "Failed to publish");
-//     } finally {
-//       setLoading(false);
-//       setStatus("");
-//     }
-//   }
-
-//   return (
-//     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-//       <h2 style={{ fontSize: "1.5rem", fontWeight: 600, color: "#161616" }}>
-//         Assignment Reference Doc
-//       </h2>
-
-//       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-//         <label style={{ fontSize: "0.875rem", fontWeight: 500, color: "#161616" }}>Company</label>
-//         <input
-//           style={{
-//             width: "100%",
-//             padding: "0.625rem",
-//             borderRadius: "6px",
-//             border: "1px solid rgba(0,0,0,0.1)",
-//             fontSize: "0.95rem",
-//             transition: "box-shadow 180ms ease",
-//             color: "#161616",
-//             backgroundColor: "#fff",
-//           }}
-//           value={company}
-//           onChange={(e) => setCompany(e.target.value)}
-//           placeholder="Company name"
-//         />
-//       </div>
-
-//       {/* ✅ PDF Upload */}
-//       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-//         <label style={{ fontSize: "0.875rem", fontWeight: 500, color: "#161616" }}>
-//           Upload PDF (optional)
-//         </label>
-//         <input
-//           ref={fileRef}
-//           type="file"
-//           accept="application/pdf"
-//           disabled={loading}
-//           onChange={(e) => {
-//             const f = e.target.files?.[0];
-//             if (f) extractFromPdf(f);
-//           }}
-//         />
-//         <div style={{ fontSize: "0.8rem", opacity: 0.75, color: "#161616" }}>
-//           Works for text-based PDFs. Scanned PDFs require OCR.
-//         </div>
-//       </div>
-
-//       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-//         <label style={{ fontSize: "0.875rem", fontWeight: 500, color: "#161616" }}>
-//           Assignment text / paste excerpt
-//         </label>
-//         <textarea
-//           style={{
-//             width: "100%",
-//             height: "160px",
-//             padding: "0.625rem",
-//             borderRadius: "6px",
-//             border: "1px solid rgba(0,0,0,0.1)",
-//             fontSize: "0.95rem",
-//             fontFamily: "inherit",
-//             transition: "box-shadow 180ms ease",
-//             resize: "none",
-//             color: "#161616",
-//             backgroundColor: "#fff",
-//           }}
-//           value={text}
-//           onChange={(e) => setText(e.target.value)}
-//           placeholder="Paste assignment or extract from PDF"
-//         />
-//       </div>
-
-//       <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
-//         <button
-//           onClick={generate}
-//           disabled={loading || !text.trim()}
-//           style={{
-//             display: "inline-flex",
-//             alignItems: "center",
-//             gap: "0.6rem",
-//             padding: "0.6rem 1rem",
-//             borderRadius: "10px",
-//             fontWeight: 600,
-//             cursor: loading ? "not-allowed" : "pointer",
-//             border: "none",
-//             background: loading ? "rgba(16, 185, 129, 0.3)" : "linear-gradient(90deg, #10b981, #059669)",
-//             color: "#FEFACD",
-//           }}
-//         >
-//           {loading ? "Working…" : "Generate Reference Doc"}
-//         </button>
-
-//         {status && <span style={{ fontSize: "0.875rem", color: "#161616" }}>{status}</span>}
-//       </div>
-
-//       {error && <div style={{ color: "#dc2626", fontSize: "0.875rem" }}>{error}</div>}
-
-//       {markdown && (
-//         <div style={{ marginTop: "1rem" }}>
-//           <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "0.5rem", color: "#161616" }}>
-//             Preview
-//           </h3>
-
-//           <div
-//             style={{
-//               marginTop: "0.5rem",
-//               padding: "1rem",
-//               background: "rgba(255,255,255,0.6)",
-//               border: "1px solid rgba(0,0,0,0.1)",
-//               borderRadius: "8px",
-//               maxHeight: "384px",
-//               overflowY: "auto",
-//             }}
-//           >
-//             <pre
-//               style={{
-//                 whiteSpace: "pre-wrap",
-//                 wordWrap: "break-word",
-//                 fontFamily: "monospace",
-//                 fontSize: "0.875rem",
-//                 color: "#161616",
-//               }}
-//             >
-//               {markdown}
-//             </pre>
-//           </div>
-
-//           <div style={{ marginTop: "0.75rem" }}>
-//             <button
-//               onClick={publishToNotion}
-//               disabled={loading}
-//               style={{
-//                 display: "inline-flex",
-//                 alignItems: "center",
-//                 gap: "0.6rem",
-//                 padding: "0.6rem 1rem",
-//                 borderRadius: "10px",
-//                 fontWeight: 600,
-//                 cursor: loading ? "not-allowed" : "pointer",
-//                 border: "none",
-//                 background: "linear-gradient(90deg, #F1E194, #fff6d8)",
-//                 color: "#5B0E14",
-//               }}
-//             >
-//               Create Notion Page
-//             </button>
-//           </div>
-//         </div>
-//       )}
-//     </div>
-//   );
-// }
-
-
 "use client";
+
 import { useRef, useState } from "react";
+
+type NotionCreateResponse = {
+  preferredUrl?: string;
+  publicUrl?: string;
+  url?: string;
+  error?: string;
+};
+
+function isPdfFile(file: File) {
+  return file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+}
+
+function isTextDocument(file: File) {
+  return file.type.startsWith("text/") || /\.(txt|md|markdown)$/i.test(file.name);
+}
 
 export default function AssignmentGenerator() {
   const [company, setCompany] = useState("");
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState<string>("");
+  const [status, setStatus] = useState("Idle");
   const [markdown, setMarkdown] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notionUrl, setNotionUrl] = useState("");
 
   const fileRef = useRef<HTMLInputElement | null>(null);
 
+  async function runGenerate(assignmentText: string) {
+    setError(null);
+    setNotionUrl("");
+    setMarkdown(null);
+    setStatus("Generating reference document...");
+    setLoading(true);
+
+    try {
+      const res = await fetch("/api/generate-assignment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyName: company, assignmentText }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const message =
+          data && typeof data === "object" && "error" in data && typeof data.error === "string"
+            ? data.error
+            : "Generation failed";
+        throw new Error(message);
+      }
+
+      const generated =
+        data && typeof data === "object" && "markdown" in data && typeof data.markdown === "string"
+          ? data.markdown
+          : "";
+
+      if (!generated.trim()) {
+        throw new Error("No content generated");
+      }
+
+      setMarkdown(generated);
+      setStatus("Reference document is ready. Create Notion page when ready.");
+    } catch (err: unknown) {
+      setStatus("Failed.");
+      setError(err instanceof Error ? err.message : "Generation failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function extractFromPdf(file: File) {
     setError(null);
-    setStatus("Extracting text from PDF…");
+    setStatus("1/2 Extracting text from PDF...");
     setLoading(true);
 
     try {
@@ -568,121 +85,160 @@ export default function AssignmentGenerator() {
       });
 
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || "Failed to extract PDF text");
+      if (!res.ok) {
+        const message =
+          data && typeof data === "object" && "error" in data && typeof data.error === "string"
+            ? data.error
+            : "Failed to extract PDF text";
+        throw new Error(message);
+      }
 
-      if (data?.warning) {
-        // scanned / OCR case warning
+      if (data && typeof data === "object" && "warning" in data && typeof data.warning === "string") {
         setError(data.warning);
       }
 
-      const extracted = (data?.text || "").trim();
+      const extracted =
+        data && typeof data === "object" && "text" in data && typeof data.text === "string"
+          ? data.text.trim()
+          : "";
 
-      // Update UI textbox
       setText(extracted);
 
-      // ✅ Important: run generate using extracted directly (avoid async state issue)
       if (extracted) {
-        await generate(extracted);
+        setStatus("2/2 Text extracted. Generating reference document...");
+        await runGenerate(extracted);
+      } else {
+        setStatus("No readable text extracted from PDF.");
       }
-    } catch (err: any) {
-      setError(err?.message || "Failed to extract PDF text");
+    } catch (err: unknown) {
+      setStatus("Failed.");
+      setError(err instanceof Error ? err.message : "Failed to extract PDF text");
     } finally {
       setLoading(false);
-      setStatus("");
-      if (fileRef.current) fileRef.current.value = "";
+      if (fileRef.current) {
+        fileRef.current.value = "";
+      }
     }
   }
 
-  // ✅ allow override text (used by extractFromPdf)
-  async function generate(overrideText?: string) {
+  async function extractFromTextDocument(file: File) {
     setError(null);
-    setMarkdown(null);
-    setStatus("Generating reference doc…");
+    setStatus("1/2 Reading uploaded document...");
     setLoading(true);
 
-    const assignmentText = (overrideText ?? text).trim();
-    if (!assignmentText) {
+    try {
+      const content = (await file.text()).trim();
+      if (!content) {
+        throw new Error("No readable text found in the uploaded document.");
+      }
+
+      setText(content);
+      setStatus("2/2 Text extracted. Generating reference document...");
+      await runGenerate(content);
+    } catch (err: unknown) {
+      setStatus("Failed.");
+      setError(
+        err instanceof Error ? err.message : "Failed to read uploaded document"
+      );
+    } finally {
       setLoading(false);
-      setStatus("");
+      if (fileRef.current) {
+        fileRef.current.value = "";
+      }
+    }
+  }
+
+  async function handleDocumentUpload(file: File) {
+    if (isPdfFile(file)) {
+      await extractFromPdf(file);
+      return;
+    }
+
+    if (isTextDocument(file)) {
+      await extractFromTextDocument(file);
+      return;
+    }
+
+    setStatus("Failed.");
+    setError("Unsupported file type. Upload PDF, TXT, or MD.");
+    if (fileRef.current) {
+      fileRef.current.value = "";
+    }
+  }
+
+  async function generate() {
+    const assignmentText = text.trim();
+    if (!assignmentText) {
       setError("Please add assignment text first.");
       return;
     }
 
-    try {
-      const res = await fetch("/api/generate-assignment", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyName: company, assignmentText }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || "Generation failed");
-
-      setMarkdown(data.markdown || "");
-    } catch (err: any) {
-      setError(err?.message || "Generation failed");
-    } finally {
-      setLoading(false);
-      setStatus("");
-    }
+    await runGenerate(assignmentText);
   }
 
   async function publishToNotion() {
-    if (!markdown) return;
+    if (!markdown) {
+      return;
+    }
 
     setError(null);
-    setStatus("Creating Notion page…");
+    setStatus("Creating Notion page...");
     setLoading(true);
-
-    const newTab = window.open("about:blank", "_blank");
-    if (newTab) {
-      newTab.document.title = "Creating Notion Page…";
-      newTab.document.body.innerHTML = `
-        <div style="font-family:system-ui;padding:24px;">
-          <h2 style="margin:0 0 8px;">Creating your Notion page…</h2>
-          <p style="margin:0;opacity:.75;">Please keep this tab open.</p>
-        </div>`;
-    }
 
     try {
       const res = await fetch("/api/create-notion", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: `${company} - Assignment Reference`,
+          title: `${company || "Interview"} - Assignment Reference`,
           markdown,
         }),
       });
 
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || "Failed to publish");
+      const data = (await res.json()) as NotionCreateResponse;
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to publish");
+      }
 
-      const url = data.preferredUrl || data.url || data.publicUrl || "";
-      if (!url) throw new Error("Notion URL not returned from API.");
+      const url = data.preferredUrl || data.publicUrl || data.url || "";
+      if (!url) {
+        throw new Error("Notion URL not returned from API.");
+      }
 
-      if (newTab) newTab.location.href = url;
-      else window.location.assign(url);
-    } catch (err: any) {
-      if (newTab) newTab.close();
-      setError(err?.message || "Failed to publish");
+      setNotionUrl(url);
+      setStatus("Completed. Notion page created successfully.");
+    } catch (err: unknown) {
+      setStatus("Failed.");
+      setError(err instanceof Error ? err.message : "Failed to publish");
     } finally {
       setLoading(false);
-      setStatus("");
     }
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-      <h2 style={{ fontSize: "1.5rem", fontWeight: 600, color: "#161616" }}>
-        Assignment Reference Doc
-      </h2>
+    <div style={{ display: "flex", flexDirection: "column", gap: "1rem", maxWidth: "48rem", margin: "0 auto" }}>
+      <h2 style={{ fontSize: "1.5rem", fontWeight: 700, color: "#161616" }}>Assignment Reference Doc</h2>
+
+      <div
+        aria-live="polite"
+        style={{
+          minHeight: "2.5rem",
+          display: "flex",
+          alignItems: "center",
+          padding: "0.625rem 0.75rem",
+          borderRadius: "8px",
+          border: "1px solid rgba(0,0,0,0.08)",
+          background: "rgba(255,255,255,0.78)",
+          color: "#5B0E14",
+          fontSize: "0.9rem",
+        }}
+      >
+        <span style={{ fontWeight: 700, marginRight: "0.4rem" }}>Status:</span>
+        <span>{status}</span>
+      </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-        <label
-          style={{ fontSize: "0.875rem", fontWeight: 500, color: "#161616" }}
-        >
-          Company
-        </label>
+        <label style={{ fontSize: "0.875rem", fontWeight: 500, color: "#161616" }}>Company</label>
         <input
           style={{
             width: "100%",
@@ -700,30 +256,28 @@ export default function AssignmentGenerator() {
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-        <label
-          style={{ fontSize: "0.875rem", fontWeight: 500, color: "#161616" }}
-        >
-          Upload PDF (optional)
+        <label style={{ fontSize: "0.875rem", fontWeight: 500, color: "#161616" }}>
+          Upload document (optional)
         </label>
         <input
           ref={fileRef}
           type="file"
-          accept="application/pdf"
+          accept=".pdf,.txt,.md,.markdown,text/plain,text/markdown,application/pdf"
           disabled={loading}
           onChange={(e) => {
             const f = e.target.files?.[0];
-            if (f) extractFromPdf(f);
+            if (f) {
+              void handleDocumentUpload(f);
+            }
           }}
         />
         <div style={{ fontSize: "0.8rem", opacity: 0.75, color: "#161616" }}>
-          Text PDFs extract instantly. Scanned PDFs auto-use OCR (first 3 pages).
+          Upload PDF/TXT/MD. We extract text immediately and start generation automatically.
         </div>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-        <label
-          style={{ fontSize: "0.875rem", fontWeight: 500, color: "#161616" }}
-        >
+        <label style={{ fontSize: "0.875rem", fontWeight: 500, color: "#161616" }}>
           Assignment text / paste excerpt
         </label>
         <textarea
@@ -745,51 +299,78 @@ export default function AssignmentGenerator() {
         />
       </div>
 
-      <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+      <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
         <button
-          onClick={() => generate()}
+          onClick={() => void generate()}
           disabled={loading || !text.trim()}
           style={{
             display: "inline-flex",
             alignItems: "center",
+            justifyContent: "center",
             gap: "0.6rem",
-            padding: "0.6rem 1rem",
+            padding: "0.7rem 1rem",
             borderRadius: "10px",
-            fontWeight: 600,
+            fontWeight: 700,
             cursor: loading ? "not-allowed" : "pointer",
             border: "none",
-            background: loading
-              ? "rgba(16, 185, 129, 0.3)"
-              : "linear-gradient(90deg, #10b981, #059669)",
+            background: loading ? "rgba(16, 185, 129, 0.3)" : "linear-gradient(90deg, #10b981, #059669)",
             color: "#FEFACD",
+            opacity: loading ? 0.85 : 1,
           }}
         >
-          {loading ? "Working…" : "Generate Reference Doc"}
+          {loading ? "Working..." : "Generate Reference Doc"}
         </button>
 
-        {status && (
-          <span style={{ fontSize: "0.875rem", color: "#161616" }}>
-            {status}
-          </span>
+        {markdown && (
+          <button
+            onClick={() => void publishToNotion()}
+            disabled={loading}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "0.6rem",
+              padding: "0.7rem 1rem",
+              borderRadius: "10px",
+              fontWeight: 700,
+              cursor: loading ? "not-allowed" : "pointer",
+              border: "none",
+              background: "linear-gradient(90deg, #F1E194, #fff6d8)",
+              color: "#5B0E14",
+              opacity: loading ? 0.85 : 1,
+            }}
+          >
+            Create Notion Page
+          </button>
         )}
       </div>
 
-      {error && (
-        <div style={{ color: "#dc2626", fontSize: "0.875rem" }}>{error}</div>
+      {error && <div style={{ color: "#dc2626", fontSize: "0.875rem" }}>{error}</div>}
+
+      {notionUrl && (
+        <a
+          href={notionUrl}
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            width: "fit-content",
+            textDecoration: "none",
+            fontSize: "0.9rem",
+            fontWeight: 600,
+            color: "#5B0E14",
+            padding: "0.55rem 0.85rem",
+            borderRadius: "8px",
+            border: "1px solid rgba(91,14,20,0.24)",
+            background: "rgba(255,255,255,0.78)",
+          }}
+        >
+          Open Created Notion Page
+        </a>
       )}
 
       {markdown && (
         <div style={{ marginTop: "1rem" }}>
-          <h3
-            style={{
-              fontSize: "1rem",
-              fontWeight: 600,
-              marginBottom: "0.5rem",
-              color: "#161616",
-            }}
-          >
-            Preview
-          </h3>
+          <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "0.5rem", color: "#161616" }}>Preview</h3>
 
           <div
             style={{
@@ -813,27 +394,6 @@ export default function AssignmentGenerator() {
             >
               {markdown}
             </pre>
-          </div>
-
-          <div style={{ marginTop: "0.75rem" }}>
-            <button
-              onClick={publishToNotion}
-              disabled={loading}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "0.6rem",
-                padding: "0.6rem 1rem",
-                borderRadius: "10px",
-                fontWeight: 600,
-                cursor: loading ? "not-allowed" : "pointer",
-                border: "none",
-                background: "linear-gradient(90deg, #F1E194, #fff6d8)",
-                color: "#5B0E14",
-              }}
-            >
-              Create Notion Page
-            </button>
           </div>
         </div>
       )}
