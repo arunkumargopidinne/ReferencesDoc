@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createNotionPage } from '../../../src/lib/notion';
+import { getNotionErrorStatus } from '../../../src/lib/notionClientRetry';
 
 function getStringProp(obj: unknown, key: string): string {
   if (!obj || typeof obj !== "object") return "";
@@ -33,6 +34,14 @@ export async function POST(req: Request) {
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Server error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    const notionStatus = getNotionErrorStatus(err);
+    const status =
+      typeof notionStatus === 'number' &&
+      notionStatus >= 400 &&
+      notionStatus <= 599
+        ? notionStatus
+        : 500;
+
+    return NextResponse.json({ error: message }, { status });
   }
 }
