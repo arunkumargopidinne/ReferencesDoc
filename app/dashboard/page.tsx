@@ -29,6 +29,7 @@ export default function Page() {
   const [pending, setPending] = useState<Mode | null>(null);
   const [task, setTask] = useState<TaskState>(IDLE);
   const [showBlockedToast, setShowBlockedToast] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const startTask = useCallback((cancelFn: () => void) => {
@@ -58,6 +59,7 @@ export default function Page() {
       return;
     }
     setActive(mode);
+    setMobileNavOpen(false);
   };
 
   useEffect(() => {
@@ -86,12 +88,31 @@ export default function Page() {
 
       <div className="dash-shell" style={shellStyle}>
         <aside className="dash-sidebar" style={sidebarStyle}>
-          <div style={brandStyle}>
-            <div style={brandTitleStyle}>Reference Doc Prep Studio</div>
-            <div style={brandSubStyle}>Educational Interview Preparation</div>
+          <div className="dash-brand" style={brandStyle}>
+            <div>
+              <div style={brandTitleStyle}>Reference Doc Prep Studio</div>
+              <div style={brandSubStyle}>Educational Interview Preparation</div>
+            </div>
+            <button
+              type="button"
+              className="dash-menu-toggle"
+              aria-label={mobileNavOpen ? "Close navigation menu" : "Open navigation menu"}
+              aria-expanded={mobileNavOpen}
+              aria-controls="dashboard-navigation"
+              onClick={() => setMobileNavOpen((prev) => !prev)}
+              style={menuToggleStyle}
+            >
+              <span style={menuBarStyle} />
+              <span style={menuBarStyle} />
+              <span style={menuBarStyle} />
+            </button>
           </div>
 
-          <nav className="dash-nav" style={navStyle}>
+          <nav
+            id="dashboard-navigation"
+            className={`dash-nav${mobileNavOpen ? " dash-nav-open" : ""}`}
+            style={navStyle}
+          >
             {OPTIONS.map((option) => {
               const isActive = active === option.value;
               const isLocked = task.running && !isActive;
@@ -111,7 +132,7 @@ export default function Page() {
         </aside>
 
         <main className="dash-main" style={mainStyle}>
-          <header style={headerStyle}>
+          <header className="dash-header" style={headerStyle}>
             <h1 style={headingStyle}>Interview Reference Document Generator</h1>
             <p style={headingSubStyle}>
               Generate structured study documents for drilldowns, assignments,
@@ -120,7 +141,7 @@ export default function Page() {
           </header>
 
           {task.running && (
-            <div style={taskCardStyle}>
+            <div className="dash-task" style={taskCardStyle}>
               <div style={taskMetaStyle}>
                 <div style={taskLabelStyle}>In Progress</div>
                 <div style={taskStepStyle}>{task.step}</div>
@@ -131,7 +152,7 @@ export default function Page() {
             </div>
           )}
 
-          <section style={panelStyle}>
+          <section className="dash-panel" style={panelStyle}>
             {active === "drilldowns" && <DrilldownGenerator {...taskProps} />}
             {active === "assignment" && <AssignmentGenerator {...taskProps} />}
             {active === "techstack" && <TechStackGenerator {...taskProps} />}
@@ -148,15 +169,54 @@ export default function Page() {
           .dash-sidebar {
             width: 100% !important;
             position: static !important;
+            height: auto !important;
             border-right: none !important;
             border-bottom: 1px solid #e5e7eb !important;
           }
+          .dash-brand {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            gap: 1rem !important;
+          }
+          .dash-menu-toggle {
+            display: inline-flex !important;
+          }
           .dash-nav {
-            flex-direction: row !important;
-            overflow-x: auto !important;
+            display: none !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
+            padding-top: 0 !important;
+          }
+          .dash-nav.dash-nav-open {
+            display: flex !important;
+          }
+          .dash-nav > button {
+            width: 100% !important;
+            min-width: 0 !important;
+          }
+          .dash-header,
+          .dash-panel {
+            padding: 1rem !important;
+          }
+          .dash-task {
+            flex-direction: column !important;
+            align-items: stretch !important;
           }
           .dash-main {
-            padding: 1rem !important;
+            padding: 0.9rem !important;
+          }
+        }
+
+        @media (max-width: 560px) {
+          .dash-nav > button {
+            width: 100% !important;
+          }
+        }
+
+        @media (min-width: 901px) {
+          .dash-menu-toggle {
+            display: none !important;
           }
         }
       `}</style>
@@ -186,6 +246,28 @@ const sidebarStyle: React.CSSProperties = {
 const brandStyle: React.CSSProperties = {
   padding: "1.25rem 1rem 1rem",
   borderBottom: "1px solid rgba(226, 232, 240, 0.12)",
+};
+
+const menuToggleStyle: React.CSSProperties = {
+  display: "none",
+  flexDirection: "column",
+  justifyContent: "center",
+  alignItems: "center",
+  gap: 4,
+  width: 42,
+  height: 42,
+  borderRadius: 10,
+  border: "1px solid rgba(191, 219, 254, 0.35)",
+  background: "rgba(255, 255, 255, 0.08)",
+  cursor: "pointer",
+  flexShrink: 0,
+};
+
+const menuBarStyle: React.CSSProperties = {
+  width: 18,
+  height: 2,
+  borderRadius: 999,
+  background: "#f8fafc",
 };
 
 const brandTitleStyle: React.CSSProperties = {

@@ -328,70 +328,89 @@ export default function QuestionsGenerator({ startTask, updateTask, endTask }: T
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", maxWidth: "48rem", margin: "0 auto" }}>
-      <h2 style={headingStyle}>Question-Based Generation</h2>
+    <>
+      <div className="questions-shell" style={{ display: "flex", flexDirection: "column", gap: "1.25rem", maxWidth: "48rem", margin: "0 auto", width: "100%" }}>
+        <h2 style={headingStyle}>Question-Based Generation</h2>
 
-      <Field label="Company">
-        <input style={inputStyle} value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Company name" />
-      </Field>
-      <Field label="Questions (one per line)">
-        <textarea
-          style={{ ...inputStyle, height: "150px", resize: "none", fontFamily: "inherit" }}
-          value={questions}
-          onChange={(e) => setQuestions(e.target.value)}
-          placeholder="Paste interview questions here"
-        />
-      </Field>
+        <Field label="Company">
+          <input style={inputStyle} value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Company name" />
+        </Field>
+        <Field label="Questions (one per line)">
+          <textarea
+            style={{ ...inputStyle, height: "150px", resize: "none", fontFamily: "inherit" }}
+            value={questions}
+            onChange={(e) => setQuestions(e.target.value)}
+            placeholder="Paste interview questions here"
+          />
+        </Field>
 
-      <div style={{ borderTop: "1px solid rgba(15,23,42,0.1)", paddingTop: "1rem" }}>
-        <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "#475569", letterSpacing: "0.08em", textTransform: "uppercase", fontFamily: "monospace", marginBottom: "0.75rem" }}>
-          Sheet Details - all fields required
+        <div style={{ borderTop: "1px solid rgba(15,23,42,0.1)", paddingTop: "1rem" }}>
+          <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "#475569", letterSpacing: "0.08em", textTransform: "uppercase", fontFamily: "monospace", marginBottom: "0.75rem" }}>
+            Sheet Details - all fields required
+          </div>
+          <div className="questions-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+            <Field label="Job ID *">
+              <input style={inputStyle} value={jobId} onChange={(e) => setJobId(e.target.value)} placeholder="e.g. JOB-001" />
+            </Field>
+            <Field label="Created By *">
+              <input style={inputStyle} value={createdBy} onChange={(e) => setCreatedBy(e.target.value)} placeholder="Your name" />
+            </Field>
+            <Field label="Interview Round *">
+              <select style={{ ...inputStyle, cursor: "pointer" }} value={interviewRound} onChange={(e) => setInterviewRound(e.target.value)}>
+                {INTERVIEW_ROUNDS.map((r) => <option key={r} value={r} style={{ color: "#161616", background: "#fff" }}>{r}</option>)}
+              </select>
+            </Field>
+            <Field label="Document Type *">
+              <select style={{ ...inputStyle, cursor: "pointer" }} value={documentType} onChange={(e) => setDocumentType(e.target.value)}>
+                {DOCUMENT_TYPES.map((d) => <option key={d} value={d} style={{ color: "#161616", background: "#fff" }}>{d}</option>)}
+              </select>
+            </Field>
+          </div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-          <Field label="Job ID *">
-            <input style={inputStyle} value={jobId} onChange={(e) => setJobId(e.target.value)} placeholder="e.g. JOB-001" />
-          </Field>
-          <Field label="Created By *">
-            <input style={inputStyle} value={createdBy} onChange={(e) => setCreatedBy(e.target.value)} placeholder="Your name" />
-          </Field>
-          <Field label="Interview Round *">
-            <select style={{ ...inputStyle, cursor: "pointer" }} value={interviewRound} onChange={(e) => setInterviewRound(e.target.value)}>
-              {INTERVIEW_ROUNDS.map((r) => <option key={r} value={r} style={{ color: "#161616", background: "#fff" }}>{r}</option>)}
-            </select>
-          </Field>
-          <Field label="Document Type *">
-            <select style={{ ...inputStyle, cursor: "pointer" }} value={documentType} onChange={(e) => setDocumentType(e.target.value)}>
-              {DOCUMENT_TYPES.map((d) => <option key={d} value={d} style={{ color: "#161616", background: "#fff" }}>{d}</option>)}
-            </select>
-          </Field>
-        </div>
+
+        {error && <div style={errorStyle}>{error}</div>}
+        {notionUrl && <NotionLink className="questions-link" url={notionUrl} />}
+
+        <button
+          className="questions-action"
+          onClick={() => void handleGenerate()}
+          disabled={loading || !questions.trim()}
+          style={btnPrimary(loading)}
+        >
+          {loading ? <LoadingDots /> : "Generate Notion Doc"}
+        </button>
       </div>
 
-      {error && <div style={errorStyle}>{error}</div>}
-      {notionUrl && <NotionLink url={notionUrl} />}
+      <style>{`
+        @media (max-width: 768px) {
+          .questions-grid {
+            grid-template-columns: 1fr !important;
+          }
 
-      <button
-        onClick={() => void handleGenerate()}
-        disabled={loading || !questions.trim()}
-        style={btnPrimary(loading)}
-      >
-        {loading ? <LoadingDots /> : "Generate Notion Doc"}
-      </button>
-    </div>
+          .questions-action,
+          .questions-link {
+            width: 100% !important;
+          }
+        }
+      `}</style>
+    </>
   );
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}><label style={labelStyle}>{label}</label>{children}</div>;
 }
-function NotionLink({ url }: { url: string }) {
+function NotionLink({ url, className }: { url: string; className?: string }) {
   return (
     <a
+      className={className}
       href={url}
       target="_blank"
       rel="noreferrer"
       style={{
         width: "fit-content",
+        display: "inline-flex",
+        justifyContent: "center",
         textDecoration: "none",
         fontSize: "0.875rem",
         fontWeight: 600,
