@@ -302,7 +302,7 @@ export default function QuestionsGenerator({ startTask, updateTask, endTask }: T
 
       // Step 2: Create Notion page with toggle per question
       updateTask(65, "Creating Notion page…");
-      const notionTitle = `${companyToUse || "Interview"} - Question Answers`;
+      const notionTitle = `${companyToUse || "Interview"} Reference Document`;
       const resNotion = await fetch("/api/create-notion-toggles", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: notionTitle, markdown, headingLevel: "###" }),

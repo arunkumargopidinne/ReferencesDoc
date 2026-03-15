@@ -49,7 +49,7 @@ export default function DrilldownGenerator({ startTask, updateTask, endTask }: T
       if (!markdown) throw new Error("No content generated");
 
       updateTask(75, "Creating Notion page…");
-      const notionTitle = `${company} - Reference Document`;
+      const notionTitle = `${company} Reference Document`;
       const resNotion = await fetch("/api/create-notion-toggles", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: notionTitle, markdown, headingLevel: "##" }) });
       if (cancelledRef.current) return;
       const dataNotion = (await resNotion.json()) as NotionCreateResponse;
@@ -72,7 +72,7 @@ export default function DrilldownGenerator({ startTask, updateTask, endTask }: T
       <h2 style={headingStyle}>Drilldown - Job Description Input</h2>
       <Field label="Company"><input style={inputStyle} value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Acme Corp" /></Field>
       <Field label="Job Description / Questions"><textarea style={{ ...inputStyle, height: "150px", resize: "none", fontFamily: "inherit" }} value={jobDescription} onChange={(e) => setJobDescription(e.target.value)} placeholder="Paste JD or drilldown questions" /></Field>
-      <Field label="Tech Stack"><input style={inputStyle} value={techStack} onChange={(e) => setTechStack(e.target.value)} placeholder="React, Node.js, PostgreSQL" /></Field>
+      <Field label="Tech Stack"><input style={inputStyle} value={techStack} onChange={(e) => setTechStack(e.target.value)} placeholder="React, Node.js, PostgreSQL" /></Field> 
       <div style={{ borderTop: "1px solid rgba(15,23,42,0.1)", paddingTop: "1rem" }}>
         <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "#475569", letterSpacing: "0.08em", textTransform: "uppercase", fontFamily: "monospace", marginBottom: "0.75rem" }}>
           Sheet Details - all fields required

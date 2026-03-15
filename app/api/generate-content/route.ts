@@ -433,6 +433,65 @@ function normalizeMarkdown(input: string): string {
   return text.replace(/\n{3,}/g, "\n\n").trim();
 }
 
+function normalizeComparable(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function normalizeTopicSection(
+  input: string,
+  topicTitle: string,
+  nestedHeadingLevel: 3 | 4
+): string {
+  const text = normalizeMarkdown(input);
+  if (!text) {
+    return `## ${topicTitle}`;
+  }
+
+  const comparableTitle = normalizeComparable(topicTitle);
+  const lines = text.split("\n");
+  const bodyLines: string[] = [];
+  let inCodeBlock = false;
+  let consumedRootHeading = false;
+
+  for (const line of lines) {
+    if (/^\s*```/.test(line)) {
+      inCodeBlock = !inCodeBlock;
+      bodyLines.push(line);
+      continue;
+    }
+
+    if (inCodeBlock) {
+      bodyLines.push(line);
+      continue;
+    }
+
+    const headingMatch = line.match(/^(#{1,6})\s+(.*)$/);
+    if (!headingMatch) {
+      bodyLines.push(line);
+      continue;
+    }
+
+    const [, hashes, rawHeadingText] = headingMatch;
+    const headingText = rawHeadingText.trim();
+    if (
+      !consumedRootHeading &&
+      normalizeComparable(headingText) === comparableTitle
+    ) {
+      consumedRootHeading = true;
+      continue;
+    }
+
+    const nextLevel = Math.min(
+      6,
+      Math.max(nestedHeadingLevel, hashes.length + 1)
+    );
+    bodyLines.push(`${"#".repeat(nextLevel)} ${headingText}`);
+  }
+
+  const body = bodyLines.join("\n").trim();
+  return normalizeMarkdown(`## ${topicTitle}${body ? `\n\n${body}` : ""}`);
+}
+
 function topicToTitle(topic: TopicInput): string {
   if (typeof topic === "string") return topic.trim();
   if (topic && typeof topic === "object" && typeof topic.title === "string") {
@@ -461,7 +520,8 @@ function dedupeTitles(topics: string[]): string[] {
 async function generateForOneTopic(
   topicTitle: string,
   apiKey: string,
-  techContext = ""
+  techContext = "",
+  nestedHeadingLevel: 3 | 4 = 3
 ): Promise<string> {
   const userPrompt = (
     `Generate the quick-reference section for this topic:\n\n` +
@@ -483,7 +543,7 @@ async function generateForOneTopic(
     apiKey
   );
 
-  return normalizeMarkdown(content || "");
+  return normalizeTopicSection(content || "", topicTitle, nestedHeadingLevel);
 }
 
 async function runWithConcurrency<T>(
@@ -510,13 +570,6 @@ export async function POST(req: Request) {
     process.env.OPENAI_API_KEY || process.env.NEXT_PUBLIC_OPENAI_API_KEY || "";
 
   try {
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "Server misconfiguration: OPENAI_API_KEY is not set" },
-        { status: 500 }
-      );
-    }
-
     const body = await req.json();
     const rawTopics = body?.topics;
     const mode = typeof body?.mode === "string" ? body.mode : "";
@@ -557,7 +610,7 @@ export async function POST(req: Request) {
         if (!titles.length) continue;
 
         const tasks = titles.map(
-          (title) => () => generateForOneTopic(title, apiKey, tech)
+          (title) => () => generateForOneTopic(title, apiKey, tech, 4)
         );
 
         const parts = await runWithConcurrency(tasks, CONCURRENCY);

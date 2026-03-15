@@ -177,27 +177,27 @@ const sidebarStyle: React.CSSProperties = {
   position: "sticky",
   top: 0,
   height: "100vh",
-  borderRight: "1px solid #e5e7eb",
-  background: "rgba(255,255,255,0.94)",
+  borderRight: "1px solid rgba(15, 23, 42, 0.18)",
+  background: "linear-gradient(180deg, #123a6b 0%, #0f2c54 100%)",
   display: "flex",
   flexDirection: "column",
 };
 
 const brandStyle: React.CSSProperties = {
   padding: "1.25rem 1rem 1rem",
-  borderBottom: "1px solid #eef2f7",
+  borderBottom: "1px solid rgba(226, 232, 240, 0.12)",
 };
 
 const brandTitleStyle: React.CSSProperties = {
   fontSize: "1rem",
   fontWeight: 700,
-  color: "#0f172a",
+  color: "#f8fafc",
 };
 
 const brandSubStyle: React.CSSProperties = {
   marginTop: 4,
   fontSize: "0.78rem",
-  color: "#475569",
+  color: "#cbd5e1",
 };
 
 const navStyle: React.CSSProperties = {
@@ -210,14 +210,17 @@ const navStyle: React.CSSProperties = {
 const navItemStyle = (active: boolean, locked: boolean): React.CSSProperties => ({
   textAlign: "left",
   borderRadius: 10,
-  border: active ? "1px solid #bfdbfe" : "1px solid #e5e7eb",
-  background: active ? "#eff6ff" : "#ffffff",
-  color: locked ? "#94a3b8" : "#0f172a",
+  border: active ? "1px solid rgba(191, 219, 254, 0.75)" : "1px solid rgba(226, 232, 240, 0.12)",
+  background: active
+    ? "linear-gradient(135deg, rgba(59, 130, 246, 0.38), rgba(14, 165, 233, 0.22))"
+    : "rgba(255, 255, 255, 0.05)",
+  color: active ? "#f8fafc" : locked ? "rgba(148, 163, 184, 0.55)" : "#e2e8f0",
   padding: "0.7rem 0.8rem",
   cursor: locked ? "not-allowed" : "pointer",
   display: "flex",
   flexDirection: "column",
   gap: 2,
+  boxShadow: active ? "0 8px 22px rgba(8, 47, 73, 0.28)" : "none",
 });
 
 const navItemTitleStyle: React.CSSProperties = {
@@ -227,7 +230,7 @@ const navItemTitleStyle: React.CSSProperties = {
 
 const navItemDescStyle: React.CSSProperties = {
   fontSize: "0.73rem",
-  color: "#475569",
+  color: "rgba(226, 232, 240, 0.78)",
 };
 
 const mainStyle: React.CSSProperties = {

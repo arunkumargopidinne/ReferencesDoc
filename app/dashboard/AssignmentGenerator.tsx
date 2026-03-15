@@ -38,10 +38,12 @@ export default function AssignmentGenerator({
   const [text, setText] = useState("");
   const [frontendTechnologies, setFrontendTechnologies] = useState("");
   const [backendTechnologies, setBackendTechnologies] = useState("");
-  const [timeline, setTimeline] = useState("");
+  const [timeline] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notionUrl, setNotionUrl] = useState("");
+  const [dragActive, setDragActive] = useState(false);
+  const [selectedFileName, setSelectedFileName] = useState("");
 
   const [jobId, setJobId] = useState("");
   const [interviewRound, setInterviewRound] = useState(INTERVIEW_ROUNDS[0]);
@@ -92,8 +94,8 @@ export default function AssignmentGenerator({
       }
 
       updateTask(65, "Creating Notion page...");
-      const notionTitle = `${companyToUse || "Interview"} - Assignment Reference`;
-      const resNotion = await fetch("/api/create-notion", {
+      const notionTitle = `${companyToUse || "Interview"} Assignment Reference Document`;
+      const resNotion = await fetch("/api/create-notion-assignment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: notionTitle, markdown }),
@@ -177,8 +179,34 @@ export default function AssignmentGenerator({
     }
   }
 
+  function handleSelectedFile(file: File) {
+    setError(null);
+    setSelectedFileName(file.name);
+
+    if (isPdfFile(file)) {
+      void extractFromPdf(file);
+      return;
+    }
+
+    if (isTextDocument(file)) {
+      file
+        .text()
+        .then((t) => setText(t.trim()))
+        .catch(() => setError("Failed to read file"));
+      return;
+    }
+
+    setError("Upload a PDF, TXT, or MD file.");
+    setSelectedFileName("");
+    if (fileRef.current) fileRef.current.value = "";
+  }
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", maxWidth: "48rem", margin: "0 auto" }}>
+    <>
+      <div
+        className="assignment-shell"
+        style={{ display: "flex", flexDirection: "column", gap: "1.25rem", maxWidth: "48rem", margin: "0 auto", width: "100%" }}
+      >
       <h2 style={headingStyle}>Assignment Reference Doc</h2>
 
       <Field label="Company">
@@ -193,25 +221,50 @@ export default function AssignmentGenerator({
       <Field label="Upload document (optional)">
         <input
           ref={fileRef}
+          id="assignment-upload"
           type="file"
           accept=".pdf,.txt,.md,.markdown,text/plain,text/markdown,application/pdf"
           disabled={loading}
           onChange={(e) => {
             const file = e.target.files?.[0];
             if (!file) return;
-            if (isPdfFile(file)) {
-              void extractFromPdf(file);
-              return;
-            }
-            if (isTextDocument(file)) {
-              file.text().then((t) => setText(t.trim()));
-            }
+            handleSelectedFile(file);
           }}
-          style={{ color: "#334155", fontSize: "0.875rem" }}
+          style={{ display: "none" }}
         />
-        <span style={{ fontSize: "0.75rem", color: "#64748b", fontFamily: "monospace" }}>
-          PDF / TXT / MD - text extracted automatically
-        </span>
+        <label
+          htmlFor="assignment-upload"
+          className="assignment-upload-zone"
+          style={uploadZoneStyle(dragActive, loading)}
+          onDragEnter={(e) => {
+            e.preventDefault();
+            if (!loading) setDragActive(true);
+          }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            if (!loading) setDragActive(true);
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            setDragActive(false);
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragActive(false);
+            if (loading) return;
+            const file = e.dataTransfer.files?.[0];
+            if (file) handleSelectedFile(file);
+          }}
+        >
+          <UploadIcon />
+          <div style={uploadTitleStyle}>
+            <strong>Choose a file</strong> or drag it here.
+          </div>
+          <div style={uploadHintStyle}>PDF / TXT / MD - text extracted automatically</div>
+          {selectedFileName ? (
+            <div style={uploadFileNameStyle}>{selectedFileName}</div>
+          ) : null}
+        </label>
       </Field>
 
       <Field label="Assignment text">
@@ -223,7 +276,7 @@ export default function AssignmentGenerator({
         />
       </Field>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+      <div className="assignment-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
         <Field label="Frontend Technologies (optional and override)">
           <input
             style={inputStyle}
@@ -246,7 +299,7 @@ export default function AssignmentGenerator({
         <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "#475569", letterSpacing: "0.08em", textTransform: "uppercase", fontFamily: "monospace", marginBottom: "0.75rem" }}>
           Sheet Details - all fields required
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+        <div className="assignment-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
           <Field label="Job ID *">
             <input style={inputStyle} value={jobId} onChange={(e) => setJobId(e.target.value)} placeholder="e.g. JOB-001" />
           </Field>
@@ -278,6 +331,7 @@ export default function AssignmentGenerator({
       {notionUrl && <NotionLink url={notionUrl} />}
 
       <button
+        className="assignment-submit"
         onClick={() => {
           if (!text.trim()) {
             setError("Add assignment text first.");
@@ -311,7 +365,29 @@ export default function AssignmentGenerator({
       >
         {loading ? <LoadingDots /> : "Generate Notion Doc"}
       </button>
-    </div>
+      </div>
+
+      <style>{`
+        @media (max-width: 768px) {
+          .assignment-shell {
+            gap: 1rem !important;
+          }
+
+          .assignment-grid {
+            grid-template-columns: 1fr !important;
+          }
+
+          .assignment-upload-zone {
+            min-height: 200px !important;
+            padding: 1.5rem 1rem !important;
+          }
+
+          .assignment-submit {
+            width: 100%;
+          }
+        }
+      `}</style>
+    </>
   );
 }
 
@@ -365,6 +441,40 @@ function LoadingDots() {
   );
 }
 
+function UploadIcon() {
+  return (
+    <svg
+      width="72"
+      height="72"
+      viewBox="0 0 72 72"
+      fill="none"
+      aria-hidden="true"
+      style={{ color: "#87a7b3" }}
+    >
+      <path
+        d="M36 12V38"
+        stroke="currentColor"
+        strokeWidth="4.5"
+        strokeLinecap="round"
+      />
+      <path
+        d="M24 28L36 40L48 28"
+        stroke="currentColor"
+        strokeWidth="4.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M19 47V57H53V47"
+        stroke="currentColor"
+        strokeWidth="4.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 const headingStyle: React.CSSProperties = {
   fontSize: "1.4rem",
   fontWeight: 700,
@@ -393,6 +503,28 @@ const inputStyle: React.CSSProperties = {
   boxSizing: "border-box",
 };
 
+const uploadTitleStyle: React.CSSProperties = {
+  fontSize: "0.95rem",
+  color: "#27485a",
+  textAlign: "center",
+  lineHeight: 1.4,
+};
+
+const uploadHintStyle: React.CSSProperties = {
+  fontSize: "0.78rem",
+  color: "#64808c",
+  fontFamily: "monospace",
+  textAlign: "center",
+};
+
+const uploadFileNameStyle: React.CSSProperties = {
+  fontSize: "0.8rem",
+  color: "#33586a",
+  fontWeight: 600,
+  textAlign: "center",
+  wordBreak: "break-word",
+};
+
 const errorStyle: React.CSSProperties = {
   color: "#b91c1c",
   fontSize: "0.85rem",
@@ -415,5 +547,28 @@ const btnPrimary = (loading: boolean): React.CSSProperties => ({
   opacity: loading ? 0.7 : 1,
   boxShadow: loading ? "none" : "0 4px 16px rgba(14,165,233,0.35)",
   transition: "all 180ms ease",
+});
+
+const uploadZoneStyle = (
+  dragActive: boolean,
+  loading: boolean
+): React.CSSProperties => ({
+  width: "100%",
+  minHeight: "240px",
+  borderRadius: "6px",
+  border: dragActive
+    ? "2px dashed #87a7b3"
+    : "2px dashed rgba(135, 167, 179, 0.75)",
+  background: dragActive ? "#d9e9ef" : "#d6e5eb",
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: "0.85rem",
+  padding: "2rem 1.25rem",
+  cursor: loading ? "not-allowed" : "pointer",
+  transition: "background 180ms ease, border-color 180ms ease, transform 180ms ease",
+  opacity: loading ? 0.75 : 1,
+  boxSizing: "border-box",
 });
 

@@ -267,7 +267,7 @@ export default function TechStackGenerator({ startTask, updateTask, endTask }: T
       if (!markdown) throw new Error("No content generated");
 
       updateTask(75, "Creating Notion page…");
-      const notionTitle = `${companyName} - Tech Stack Prep`;
+      const notionTitle = `${companyName} Reference Document`;
       const resNotion = await fetch("/api/create-notion-toggles", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: notionTitle, markdown, headingLevel: "###" }),

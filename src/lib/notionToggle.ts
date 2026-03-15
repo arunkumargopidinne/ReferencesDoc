@@ -673,10 +673,50 @@ import { withNotionWriteRetry } from "./notionClientRetry";
 
 type AnyBlock = Record<string, unknown>;
 
-function chunkArray<T>(arr: T[], size: number): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
-  return out;
+function countBlockTree(block: AnyBlock): number {
+  const blockType = block.type as string;
+  const blockContent = (block[blockType] ?? {}) as AnyBlock;
+  const children = Array.isArray(blockContent.children)
+    ? (blockContent.children as AnyBlock[])
+    : [];
+
+  return (
+    1 +
+    children.reduce((total, child) => total + countBlockTree(child), 0)
+  );
+}
+
+function chunkBlocksForRequest(
+  blocks: AnyBlock[],
+  maxBlocksPerRequest = 900,
+  maxTopLevelBlocks = 100
+): AnyBlock[][] {
+  const chunks: AnyBlock[][] = [];
+  let currentChunk: AnyBlock[] = [];
+  let currentBlockCount = 0;
+
+  for (const block of blocks) {
+    const blockTreeSize = countBlockTree(block);
+    const exceedsBlockLimit =
+      currentChunk.length > 0 &&
+      currentBlockCount + blockTreeSize > maxBlocksPerRequest;
+    const exceedsTopLevelLimit = currentChunk.length >= maxTopLevelBlocks;
+
+    if (exceedsBlockLimit || exceedsTopLevelLimit) {
+      chunks.push(currentChunk);
+      currentChunk = [];
+      currentBlockCount = 0;
+    }
+
+    currentChunk.push(block);
+    currentBlockCount += blockTreeSize;
+  }
+
+  if (currentChunk.length > 0) {
+    chunks.push(currentChunk);
+  }
+
+  return chunks;
 }
 
 function stripOuterFence(md: string) {
@@ -829,7 +869,7 @@ async function appendBlocksToPage(
   pageId: string,
   allBlocks: AnyBlock[]
 ) {
-  const chunks = chunkArray(allBlocks, 100);
+  const chunks = chunkBlocksForRequest(allBlocks);
   const response = await withNotionWriteRetry("pages.create", () =>
     notion.pages.create({
       parent: {
@@ -892,7 +932,7 @@ export async function createNotionPageWithToggles(
       }
     }
 
-    const chunks = chunkArray(allBlocks, 100);
+    const chunks = chunkBlocksForRequest(allBlocks);
     const response = await withNotionWriteRetry("pages.create(techstack)", () =>
       notion.pages.create({
         parent: { database_id: notionDatabaseId },
@@ -920,7 +960,7 @@ export async function createNotionPageWithToggles(
       ? sections.map((sec) => buildToggleBlock(sec.title, buildBodyBlocks(sec.body)))
       : [buildToggleBlock(title, buildBodyBlocks(cleanMd))];
 
-    const chunks = chunkArray(toggleBlocks, 100);
+    const chunks = chunkBlocksForRequest(toggleBlocks);
     const response = await withNotionWriteRetry("pages.create(answers)", () =>
       notion.pages.create({
         parent: { database_id: notionDatabaseId },
@@ -953,7 +993,7 @@ export async function createNotionPageWithToggles(
     buildToggleBlock(sec.title, buildBodyBlocks(sec.body))
   );
 
-  const topChunks = chunkArray(toggleBlocks, 100);
+  const topChunks = chunkBlocksForRequest(toggleBlocks);
   const response = await withNotionWriteRetry("pages.create(drilldown)", () =>
     notion.pages.create({
       parent: { database_id: notionDatabaseId },
