@@ -44,3 +44,5 @@ next-env.d.ts
 application_code_dump.txt
 .env
 .env.local
+
+.next
