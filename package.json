@@ -9,7 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@napi-rs/canvas": "^0.1.95",
+    "@napi-rs/canvas": "^0.1.97",
     "@notionhq/client": "^5.11.0",
     "@tryfabric/martian": "^1.2.4",
     "dotenv": "^17.3.1",
