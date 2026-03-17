@@ -13,9 +13,15 @@ type Body = {
   chunkSize?: number;
 };
 
+function stripQuestionNumberPrefix(question: string): string {
+  return question.replace(/^\s*\d+[\).\]-]\s*/, "").trim();
+}
+
 function normalizeQuestions(input: string | string[]): string[] {
   if (Array.isArray(input)) {
-    return input.map((q) => String(q).trim()).filter(Boolean);
+    return input
+      .map((q) => stripQuestionNumberPrefix(String(q)))
+      .filter(Boolean);
   }
 
   const lines = String(input)
@@ -29,7 +35,9 @@ function normalizeQuestions(input: string | string[]): string[] {
     .map((entry) => entry.trim())
     .filter(Boolean);
 
-  return numbered.length >= 2 ? numbered : lines;
+  return (numbered.length >= 2 ? numbered : lines)
+    .map(stripQuestionNumberPrefix)
+    .filter(Boolean);
 }
 
 function chunkArray<T>(arr: T[], size: number): T[][] {
@@ -55,6 +63,7 @@ function normalizeAnswerChunk(text: string): string {
   let cleaned = stripOuterFence(text || "");
   cleaned = cleaned.replace(/\r\n/g, "\n");
   cleaned = cleaned.replace(/^##(?!#)\s+/gm, "### ");
+  cleaned = cleaned.replace(/^###\s+\d+[\).\]-]\s+/gm, "### ");
   cleaned = cleaned.replace(/\n{3,}/g, "\n\n");
   return cleaned.trim();
 }
