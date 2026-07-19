@@ -491,7 +491,7 @@ type Topic = {
   level: TopicLevel;
 };
 
-const MIN_TOPICS_PER_TECH = 20;
+const MIN_TOPICS_PER_TECH = 35;
 
 function safeParseJson(input: string): unknown | null {
   try {

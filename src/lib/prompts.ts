@@ -2,7 +2,8 @@
 export const EXTRACT_TOPICS_SYSTEM =
   "You are an experienced interview expert. Based on the following interview questions asked to multiple students, identify and list ONLY the key topics that were actually asked in the interviews. " +
   "After listing the asked topics, add more closely related fundamentals to intermediate topics that are commonly asked in similar technical interviews. " +
-  "Generate exactly 30–40 overall topics. " +
+  "Generate exactly 45–55 overall topics. " +
+  "Prioritise topics that are actually asked in real technical interviews, including the classic recurring questions, common 'X vs Y' comparisons, and practical scenario/troubleshooting topics. " +
   "Rules to follow: Keep the output topic names only, no explanations. " +
   "Section 1: Topics Asked in Interview. " +
   "Section 2: Additional Related Topics That Can Be Asked in Interviews.";
@@ -19,8 +20,8 @@ export function buildExtractTopicsUserPrompt(
     `Task:\n` +
     `1) Extract topics clearly asked or strongly implied in the context.\n` +
     `2) Add additional fundamentals/intermediate topics relevant to this stack.\n` +
-    `3) Avoid duplicates.\n` +
-    `4) Generate exactly 30–40 topics total.\n\n` +
+    `3) Avoid duplicates and near-duplicate phrasings of the same concept.\n` +
+    `4) Generate exactly 45–55 topics total.\n\n` +
     `Return STRICT JSON only:\n` +
     `{\n` +
     `  "topics": [\n` +
@@ -48,13 +49,17 @@ export function buildGenerateTechstackUserPrompt(
     `Company: ${companyName || "Not specified"}\n` +
     `Tech Stack: ${techStack}\n\n` +
     `Generate Basic to intermediate level topics for each technology listed which are most relevant to technical interviews.\n` +
-    `For each technology, generate 20–25 topics covering basic to advanced depth.\n\n` +
+    `For each technology, generate 35–40 topics covering basic to advanced depth.\n\n` +
     `Rules:\n` +
     `- Use specific, concrete topic titles (not generic labels).\n` +
+    `- Prioritise topics that are ACTUALLY ASKED in real technical interviews over rarely-tested trivia.\n` +
     `- Cover: core fundamentals, internals, advanced concepts, design patterns, performance optimization, debugging, testing, security, real-world usage, and common interview questions.\n` +
+    `- Include the classic recurring interview questions for the technology (the ones almost every candidate is asked).\n` +
+    `- Include common comparison topics ("X vs Y") and typical "how does X work internally" topics.\n` +
+    `- Include practical scenario/troubleshooting topics an interviewer would probe.\n` +
     `- Include both direct tech topics and cross-cutting fundamentals.\n` +
-    `- Avoid duplicates.\n` +
-    `- Generate at least 25 topics per technology.\n\n` +
+    `- Avoid duplicates and avoid near-duplicate phrasings of the same concept.\n` +
+    `- Generate at least 35 topics per technology.\n\n` +
     `Return STRICT JSON only:\n` +
     `{\n` +
     `  "topics": [\n` +

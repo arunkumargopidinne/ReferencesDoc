@@ -418,7 +418,13 @@ import { GENERATE_CONTENT_SYSTEM } from "../../../src/lib/prompts";
 
 export const runtime = "nodejs";
 
-const CONCURRENCY = 6;
+// Free-tier OpenAI keys are capped on requests-per-DAY, so request count is the
+// scarce resource — not speed. Covering several topics per call is what makes a
+// large document affordable: ~35 topics/tech costs ~5 calls instead of ~35.
+const CONCURRENCY = 3;
+const BATCH_SIZE = 7;
+const MAX_TOKENS_PER_TOPIC = 900;
+const MAX_TOKENS_PER_BATCH = 8000;
 
 type TopicInput = string | Record<string, unknown>;
 
@@ -517,6 +523,152 @@ function dedupeTitles(topics: string[]): string[] {
   });
 }
 
+function chunkTitles(titles: string[], size: number): string[][] {
+  const batches: string[][] = [];
+  for (let i = 0; i < titles.length; i += size) {
+    batches.push(titles.slice(i, i + size));
+  }
+  return batches;
+}
+
+// Splits one multi-topic response into per-topic sections, keyed by normalized
+// title so we can map them back to what we asked for. Fenced code is skipped so
+// a `## comment` inside a snippet never starts a bogus section.
+function splitSectionsByHeading(markdown: string): Map<string, string> {
+  const sections = new Map<string, string>();
+  const lines = normalizeMarkdown(markdown).split("\n");
+
+  let currentTitle = "";
+  let currentLines: string[] = [];
+  let inCodeBlock = false;
+
+  const flush = () => {
+    if (!currentTitle) return;
+    const body = currentLines.join("\n").trim();
+    sections.set(normalizeComparable(currentTitle), body);
+  };
+
+  for (const line of lines) {
+    if (/^\s*```/.test(line)) {
+      inCodeBlock = !inCodeBlock;
+      currentLines.push(line);
+      continue;
+    }
+
+    const headingMatch = inCodeBlock ? null : line.match(/^##\s+(.+)$/);
+    if (headingMatch) {
+      flush();
+      currentTitle = headingMatch[1].trim();
+      currentLines = [];
+      continue;
+    }
+
+    if (currentTitle) currentLines.push(line);
+  }
+  flush();
+
+  return sections;
+}
+
+async function generateForTopicBatch(
+  topicTitles: string[],
+  apiKey: string,
+  techContext = "",
+  nestedHeadingLevel: 3 | 4 = 3
+): Promise<Map<string, string>> {
+  const topicList = topicTitles.map((t) => `## ${t}`).join("\n");
+
+  const userPrompt = (
+    `Generate the quick-reference section for EACH of the following ${topicTitles.length} topics:\n\n` +
+    `${topicList}\n\n` +
+    (techContext ? `Tech context: ${techContext}\n\n` : "") +
+    `Follow the system prompt structure exactly for every topic.\n` +
+    `Cover ALL ${topicTitles.length} topics — do not skip, merge, or reorder any.\n` +
+    `Start each section with its exact "## " heading as written above.\n` +
+    `Return only Markdown. No preamble, no closing summary.`
+  ).trim();
+
+  const content = await callOpenAI(
+    [
+      { role: "system", content: GENERATE_CONTENT_SYSTEM },
+      { role: "user", content: userPrompt },
+    ],
+    {
+      temperature: 0.3,
+      max_tokens: Math.min(
+        MAX_TOKENS_PER_TOPIC * topicTitles.length,
+        MAX_TOKENS_PER_BATCH
+      ),
+    },
+    apiKey
+  );
+
+  const sections = splitSectionsByHeading(content || "");
+  const result = new Map<string, string>();
+
+  for (const title of topicTitles) {
+    const body = sections.get(normalizeComparable(title));
+    if (body === undefined) continue;
+    result.set(
+      title,
+      normalizeTopicSection(
+        `## ${title}${body ? `\n\n${body}` : ""}`,
+        title,
+        nestedHeadingLevel
+      )
+    );
+  }
+
+  return result;
+}
+
+// A batch can silently drop topics if the model runs long. Rather than one
+// retry per missing topic (expensive against a daily request cap), re-request
+// all the gaps together in a single follow-up call.
+async function generateWithBatching(
+  titles: string[],
+  apiKey: string,
+  techContext = "",
+  nestedHeadingLevel: 3 | 4 = 3
+): Promise<string[]> {
+  const batches = chunkTitles(titles, BATCH_SIZE);
+  const tasks = batches.map(
+    (batch) => () =>
+      generateForTopicBatch(batch, apiKey, techContext, nestedHeadingLevel)
+  );
+
+  const batchResults = await runWithConcurrency(tasks, CONCURRENCY);
+
+  const bySlug = new Map<string, string>();
+  for (const batchResult of batchResults) {
+    for (const [title, section] of batchResult) bySlug.set(title, section);
+  }
+
+  const missing = titles.filter((t) => !bySlug.has(t));
+  if (missing.length) {
+    console.warn(
+      `generate-content: ${missing.length}/${titles.length} topic(s) missing from batches, running repair pass.`
+    );
+    try {
+      const repaired = await generateForTopicBatch(
+        missing,
+        apiKey,
+        techContext,
+        nestedHeadingLevel
+      );
+      for (const [title, section] of repaired) bySlug.set(title, section);
+    } catch (e: unknown) {
+      console.warn(
+        "generate-content: repair pass failed:",
+        e instanceof Error ? e.message : e
+      );
+    }
+  }
+
+  // Preserve the caller's topic order; drop anything still unrecovered.
+  return titles.map((t) => bySlug.get(t) || "").filter(Boolean);
+}
+
 async function generateForOneTopic(
   topicTitle: string,
   apiKey: string,
@@ -609,11 +761,7 @@ export async function POST(req: Request) {
         const titles = dedupeTitles(grouped.get(tech) || []);
         if (!titles.length) continue;
 
-        const tasks = titles.map(
-          (title) => () => generateForOneTopic(title, apiKey, tech, 4)
-        );
-
-        const parts = await runWithConcurrency(tasks, CONCURRENCY);
+        const parts = await generateWithBatching(titles, apiKey, tech, 4);
         const validParts = parts.filter(Boolean);
 
         if (validParts.length) {
@@ -632,11 +780,7 @@ export async function POST(req: Request) {
     // ── STANDARD DRILLDOWN MODE ───────────────────────────────────────────────
     const topics = dedupeTitles(parsedTopics.map((t) => t.title));
 
-    const tasks = topics.map(
-      (title) => () => generateForOneTopic(title, apiKey)
-    );
-
-    const parts = await runWithConcurrency(tasks, CONCURRENCY);
+    const parts = await generateWithBatching(topics, apiKey);
     const validParts = parts.filter(Boolean);
 
     const finalMarkdown = normalizeMarkdown(validParts.join("\n\n"));

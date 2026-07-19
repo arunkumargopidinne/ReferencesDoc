@@ -254,6 +254,31 @@ function getApiKeyFromEnv() {
   return process.env.OPENAI_API_KEY || process.env.NEXT_PUBLIC_OPENAI_API_KEY;
 }
 
+// Rate limits are per-organization, so multiple keys from different orgs
+// multiply the available RPM budget. Ordered: override first, then primary,
+// then numbered backups.
+function getApiKeysFromEnv(apiKeyOverride?: string): string[] {
+  const candidates = [
+    apiKeyOverride,
+    process.env.OPENAI_API_KEY,
+    process.env.NEXT_PUBLIC_OPENAI_API_KEY,
+    process.env.OPENAI_API_KEY_2,
+    process.env.OPENAI_API_KEY_3,
+    process.env.OPENAI_API_KEY_4,
+    process.env.OPENAI_API_KEY_5,
+  ];
+
+  const seen = new Set<string>();
+  const keys: string[] = [];
+  for (const c of candidates) {
+    const key = c?.trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    keys.push(key);
+  }
+  return keys;
+}
+
 function getMistralApiKeyFromEnv() {
   return (
     process.env.MISTRAL_API_KEY ||
@@ -355,6 +380,29 @@ function isModelAccessError(msg: string) {
   return msg.includes("does not have access to model") || msg.includes("model_not_found");
 }
 
+function isRateLimitError(msg: string) {
+  const lower = msg.toLowerCase();
+  return (
+    lower.includes("openai error: 429") ||
+    lower.includes("openai /v1/models error: 429") ||
+    lower.includes("rate_limit_exceeded") ||
+    lower.includes("rate limit reached")
+  );
+}
+
+// OpenAI tells us how long to wait, e.g. "Please try again in 6s." / "in 350ms."
+function parseRetryAfterMs(msg: string): number | null {
+  const m = msg.match(/try again in ([\d.]+)\s*(ms|s)\b/i);
+  if (!m) return null;
+  const value = Number(m[1]);
+  if (!Number.isFinite(value)) return null;
+  return m[2].toLowerCase() === "ms" ? value : value * 1000;
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function isOpenAIAuthError(msg: string) {
   const lower = msg.toLowerCase();
   return (
@@ -387,60 +435,122 @@ async function callMistralFallback(
   return extractMessageContent(data);
 }
 
+async function callOpenAIWithKey(
+  apiKey: string,
+  messages: ChatMessage[],
+  opts?: { temperature?: number; max_tokens?: number }
+) {
+  const model = await resolveModel(apiKey);
+  const body = {
+    model,
+    messages,
+    temperature: opts?.temperature ?? 0.2,
+    max_tokens: opts?.max_tokens ?? 1200,
+  };
+
+  try {
+    const data = await postChatCompletions(apiKey, body);
+    return extractMessageContent(data);
+  } catch (e: unknown) {
+    const msg = String(e instanceof Error ? e.message : "");
+    if (isModelAccessError(msg)) {
+      cachedModel = null;
+      cachedAt = 0;
+      for (const candidate of MODEL_CANDIDATES) {
+        if (candidate === model) continue;
+        try {
+          const data = await postChatCompletions(apiKey, { ...body, model: candidate });
+          cachedModel = candidate;
+          cachedAt = Date.now();
+          return extractMessageContent(data);
+        } catch (e2: unknown) {
+          const msg2 = String(e2 instanceof Error ? e2.message : "");
+          if (!isModelAccessError(msg2)) throw e2;
+        }
+      }
+    }
+    throw e;
+  }
+}
+
+const MAX_RATE_LIMIT_ROUNDS = 3;
+
 export async function callOpenAI(
   messages: ChatMessage[],
   opts?: { temperature?: number; max_tokens?: number },
   apiKeyOverride?: string
 ) {
-  let apiKey = apiKeyOverride || getApiKeyFromEnv();
-  if (!apiKey) {
+  let keys = getApiKeysFromEnv(apiKeyOverride);
+  if (!keys.length) {
     await tryLoadDotenv();
-    apiKey = apiKeyOverride || getApiKeyFromEnv();
+    keys = getApiKeysFromEnv(apiKeyOverride);
   }
 
-  if (!apiKey) {
+  if (!keys.length) {
     console.warn("callOpenAI: OPENAI_API_KEY missing, using Mistral fallback.");
     return callMistralFallback(messages, opts);
   }
 
-  try {
-    const model = await resolveModel(apiKey);
-    const body = {
-      model,
-      messages,
-      temperature: opts?.temperature ?? 0.2,
-      max_tokens: opts?.max_tokens ?? 1200,
-    };
+  let lastError: unknown = null;
+  let lastRetryAfterMs: number | null = null;
 
-    try {
-      const data = await postChatCompletions(apiKey, body);
-      return extractMessageContent(data);
-    } catch (e: unknown) {
-      const msg = String(e instanceof Error ? e.message : "");
-      if (isModelAccessError(msg)) {
-        cachedModel = null;
-        cachedAt = 0;
-        for (const candidate of MODEL_CANDIDATES) {
-          if (candidate === model) continue;
-          try {
-            const data = await postChatCompletions(apiKey, { ...body, model: candidate });
-            cachedModel = candidate;
-            cachedAt = Date.now();
-            return extractMessageContent(data);
-          } catch (e2: unknown) {
-            const msg2 = String(e2 instanceof Error ? e2.message : "");
-            if (!isModelAccessError(msg2)) throw e2;
-          }
+  // Each round tries every key once. Auth failures drop a key for good; rate
+  // limits only drop it for this round, since another org may have headroom.
+  for (let round = 0; round < MAX_RATE_LIMIT_ROUNDS; round++) {
+    let everyFailureWasRateLimit = keys.length > 0;
+
+    for (let i = 0; i < keys.length; i++) {
+      try {
+        return await callOpenAIWithKey(keys[i], messages, opts);
+      } catch (e: unknown) {
+        const msg = String(e instanceof Error ? e.message : "");
+        lastError = e;
+
+        if (isRateLimitError(msg)) {
+          lastRetryAfterMs = parseRetryAfterMs(msg) ?? lastRetryAfterMs;
+          console.warn(
+            `callOpenAI: key ${i + 1}/${keys.length} rate limited, trying next key.`
+          );
+          continue;
         }
+
+        everyFailureWasRateLimit = false;
+
+        if (isOpenAIAuthError(msg)) {
+          console.warn(
+            `callOpenAI: key ${i + 1}/${keys.length} auth failed, trying next key.`
+          );
+          continue;
+        }
+
+        // Anything else (bad request, server error) won't be fixed by another key.
+        throw e;
       }
-      throw e;
     }
-  } catch (e: unknown) {
-    const msg = String(e instanceof Error ? e.message : "");
-    if (isOpenAIAuthError(msg)) {
-      console.warn("callOpenAI: OpenAI auth failed, using Mistral fallback.");
-      return callMistralFallback(messages, opts);
-    }
-    throw e;
+
+    // Only worth waiting and retrying if rate limiting was the sole blocker.
+    if (!everyFailureWasRateLimit || round === MAX_RATE_LIMIT_ROUNDS - 1) break;
+
+    const waitMs = Math.min(lastRetryAfterMs ?? 1000 * 2 ** round, 20000);
+    console.warn(
+      `callOpenAI: all ${keys.length} key(s) rate limited, waiting ${waitMs}ms before retry.`
+    );
+    await sleep(waitMs);
   }
+
+  const lastMsg = String(lastError instanceof Error ? lastError.message : "");
+  if (isOpenAIAuthError(lastMsg) || isRateLimitError(lastMsg)) {
+    console.warn("callOpenAI: all OpenAI keys exhausted, using Mistral fallback.");
+    try {
+      return await callMistralFallback(messages, opts);
+    } catch (mistralError: unknown) {
+      const mistralMsg = String(
+        mistralError instanceof Error ? mistralError.message : mistralError
+      );
+      // Surface the original OpenAI cause, not just the fallback's failure.
+      throw new Error(`${lastMsg} | Mistral fallback also failed: ${mistralMsg}`);
+    }
+  }
+
+  throw lastError ?? new Error("callOpenAI: no OpenAI key succeeded");
 }
