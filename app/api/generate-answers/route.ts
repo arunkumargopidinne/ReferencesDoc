@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { callOpenAI } from "../../../src/lib/openai";
+﻿import { NextResponse } from "next/server";
+import { callAnthropic } from "../../../src/lib/anthropic";
 import {
   GENERATE_ANSWERS_SYSTEM,
   buildGenerateAnswersPrompt,
@@ -95,7 +95,7 @@ export async function POST(req: Request) {
         chunks.length
       );
 
-      const content = await callOpenAI(
+      const content = await callAnthropic(
         [
           { role: "system", content: GENERATE_ANSWERS_SYSTEM },
           { role: "user", content: prompt },

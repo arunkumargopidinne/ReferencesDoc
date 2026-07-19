@@ -1,4 +1,4 @@
-// // import { NextResponse } from "next/server";
+﻿// // import { NextResponse } from "next/server";
 // // import { callOpenAI } from "../../../src/lib/openai";
 // // import {
 // //   GENERATE_CONTENT_SYSTEM,
@@ -185,8 +185,8 @@
 
 // export const runtime = "nodejs";
 
-// // ─── How many topics to process in parallel ───────────────────────────────────
-// // Keep this at 5–8 to avoid rate limits while still being fast.
+// // â”€â”€â”€ How many topics to process in parallel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// // Keep this at 5â€“8 to avoid rate limits while still being fast.
 // const CONCURRENCY = 6;
 
 // type TopicInput = string | Record<string, unknown>;
@@ -228,7 +228,7 @@
 //   });
 // }
 
-// // ─── Detect if a topic is a comparison (vs / difference / or) ─────────────────
+// // â”€â”€â”€ Detect if a topic is a comparison (vs / difference / or) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // function isComparisonTopic(title: string): boolean {
 //   const lower = title.toLowerCase();
 //   return (
@@ -241,40 +241,40 @@
 //   );
 // }
 
-// // ─── Prompt builder — one topic per call, adaptive ────────────────────────────
+// // â”€â”€â”€ Prompt builder â€” one topic per call, adaptive â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // function buildSingleTopicPrompt(topicTitle: string): string {
 //   const isComparison = isComparisonTopic(topicTitle);
 
 //   const comparisonExtra = isComparison
-//     ? `\n⚠️ THIS IS A COMPARISON TOPIC. You MUST include a Markdown comparison table immediately after the intro.\n` +
+//     ? `\nâš ï¸ THIS IS A COMPARISON TOPIC. You MUST include a Markdown comparison table immediately after the intro.\n` +
 //       `Table format:\n` +
 //       `| Feature | [First Thing] | [Second Thing] |\n` +
 //       `|---------|---------------|----------------|\n` +
-//       `Cover 6–10 meaningful dimensions (e.g. Data model, Query language, Scalability, ACID compliance, Use case, Performance, Schema, etc.)\n` +
-//       `After the table, continue with: When to use each → Key trade-offs → Real-world scenario → Interview talking points.\n`
+//       `Cover 6â€“10 meaningful dimensions (e.g. Data model, Query language, Scalability, ACID compliance, Use case, Performance, Schema, etc.)\n` +
+//       `After the table, continue with: When to use each â†’ Key trade-offs â†’ Real-world scenario â†’ Interview talking points.\n`
 //     : "";
 
 //   return (
 //     `Generate a comprehensive, interview-ready deep-dive for this topic:\n\n` +
 //     `## ${topicTitle}\n` +
 //     comparisonExtra +
-//     `\nADAPTIVE STRUCTURE — pick the format that best fits this topic:\n` +
-//     `- Conceptual (e.g. Event Loop, Closures): Definition → How it works → Internals/gotchas → Interview depth\n` +
-//     `- Comparison (e.g. MongoDB vs PostgreSQL): Intro → Comparison TABLE → When to use each → Trade-offs → Talking points\n` +
-//     `- Coding/Algorithm (e.g. Debounce, Memoization): Concept → Code example → Edge cases → Complexity\n` +
-//     `- Architecture (e.g. Microservices, Caching): What/Why → Components → Trade-offs → When NOT to use\n` +
-//     `- Language/Framework feature (e.g. React Hooks, Promises): Internal mechanics → Usage → Bugs → Best practices\n\n` +
+//     `\nADAPTIVE STRUCTURE â€” pick the format that best fits this topic:\n` +
+//     `- Conceptual (e.g. Event Loop, Closures): Definition â†’ How it works â†’ Internals/gotchas â†’ Interview depth\n` +
+//     `- Comparison (e.g. MongoDB vs PostgreSQL): Intro â†’ Comparison TABLE â†’ When to use each â†’ Trade-offs â†’ Talking points\n` +
+//     `- Coding/Algorithm (e.g. Debounce, Memoization): Concept â†’ Code example â†’ Edge cases â†’ Complexity\n` +
+//     `- Architecture (e.g. Microservices, Caching): What/Why â†’ Components â†’ Trade-offs â†’ When NOT to use\n` +
+//     `- Language/Framework feature (e.g. React Hooks, Promises): Internal mechanics â†’ Usage â†’ Bugs â†’ Best practices\n\n` +
 //     `REQUIREMENTS:\n` +
 //     `- Minimum 400 words of substantive, specific content\n` +
 //     `- Include a code snippet if this is a coding/framework topic\n` +
 //     `- Surface non-obvious insights that separate strong candidates\n` +
-//     `- Never use the same subheading template as other topics — adapt to THIS topic\n` +
-//     `- End with a "⚡ In an interview, say:" section with 2–3 punchy, specific bullets\n\n` +
+//     `- Never use the same subheading template as other topics â€” adapt to THIS topic\n` +
+//     `- End with a "âš¡ In an interview, say:" section with 2â€“3 punchy, specific bullets\n\n` +
 //     `Return only Markdown starting with ## ${topicTitle}. No preamble, no outer code fence.`
 //   ).trim();
 // }
 
-// // ─── Single topic generator ────────────────────────────────────────────────────
+// // â”€â”€â”€ Single topic generator â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // async function generateForOneTopic(
 //   topicTitle: string,
 //   apiKey: string,
@@ -290,7 +290,7 @@
 //     ],
 //     {
 //       temperature: 0.3,
-//       max_tokens: 1800, // ~1200–1500 words of real content per topic
+//       max_tokens: 1800, // ~1200â€“1500 words of real content per topic
 //     },
 //     apiKey
 //   );
@@ -298,7 +298,7 @@
 //   return normalizeMarkdown(content || "");
 // }
 
-// // ─── Parallel runner with concurrency cap ─────────────────────────────────────
+// // â”€â”€â”€ Parallel runner with concurrency cap â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // async function runWithConcurrency<T>(
 //   tasks: (() => Promise<T>)[],
 //   limit: number
@@ -318,7 +318,7 @@
 //   return results;
 // }
 
-// // ─── Route handler ────────────────────────────────────────────────────────────
+// // â”€â”€â”€ Route handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // export async function POST(req: Request) {
 //   const apiKey =
 //     process.env.OPENAI_API_KEY || process.env.NEXT_PUBLIC_OPENAI_API_KEY || "";
@@ -350,7 +350,7 @@
 //       return NextResponse.json({ error: "No valid topics found" }, { status: 400 });
 //     }
 
-//     // ── TECH STACK MODE ──────────────────────────────────────────────────────
+//     // â”€â”€ TECH STACK MODE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //     if (mode === "techstack") {
 //       const groupOrder: string[] = [];
 //       const grouped = new Map<string, string[]>();
@@ -391,7 +391,7 @@
 //       return NextResponse.json({ markdown: finalMarkdown });
 //     }
 
-//     // ── STANDARD DRILLDOWN MODE ───────────────────────────────────────────────
+//     // â”€â”€ STANDARD DRILLDOWN MODE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //     const topics = dedupeTitles(parsedTopics.map((t) => t.title));
 
 //     // One API call per topic, run up to CONCURRENCY in parallel
@@ -413,13 +413,13 @@
 // }
 
 import { NextResponse } from "next/server";
-import { callOpenAI } from "../../../src/lib/openai";
+import { callAnthropic } from "../../../src/lib/anthropic";
 import { GENERATE_CONTENT_SYSTEM } from "../../../src/lib/prompts";
 
 export const runtime = "nodejs";
 
 // Free-tier OpenAI keys are capped on requests-per-DAY, so request count is the
-// scarce resource — not speed. Covering several topics per call is what makes a
+// scarce resource â€” not speed. Covering several topics per call is what makes a
 // large document affordable: ~35 topics/tech costs ~5 calls instead of ~35.
 const CONCURRENCY = 3;
 const BATCH_SIZE = 7;
@@ -583,12 +583,12 @@ async function generateForTopicBatch(
     `${topicList}\n\n` +
     (techContext ? `Tech context: ${techContext}\n\n` : "") +
     `Follow the system prompt structure exactly for every topic.\n` +
-    `Cover ALL ${topicTitles.length} topics — do not skip, merge, or reorder any.\n` +
+    `Cover ALL ${topicTitles.length} topics â€” do not skip, merge, or reorder any.\n` +
     `Start each section with its exact "## " heading as written above.\n` +
     `Return only Markdown. No preamble, no closing summary.`
   ).trim();
 
-  const content = await callOpenAI(
+  const content = await callAnthropic(
     [
       { role: "system", content: GENERATE_CONTENT_SYSTEM },
       { role: "user", content: userPrompt },
@@ -683,7 +683,7 @@ async function generateForOneTopic(
     `Return only Markdown starting with ## ${topicTitle}. No preamble.`
   ).trim();
 
-  const content = await callOpenAI(
+  const content = await callAnthropic(
     [
       { role: "system", content: GENERATE_CONTENT_SYSTEM },
       { role: "user", content: userPrompt },
@@ -718,8 +718,7 @@ async function runWithConcurrency<T>(
 }
 
 export async function POST(req: Request) {
-  const apiKey =
-    process.env.OPENAI_API_KEY || process.env.NEXT_PUBLIC_OPENAI_API_KEY || "";
+  const apiKey = process.env.ANTHROPIC_API_KEY || "";
 
   try {
     const body = await req.json();
@@ -741,7 +740,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No valid topics found" }, { status: 400 });
     }
 
-    // ── TECH STACK MODE ──────────────────────────────────────────────────────
+    // â”€â”€ TECH STACK MODE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (mode === "techstack") {
       const groupOrder: string[] = [];
       const grouped = new Map<string, string[]>();
@@ -777,7 +776,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ markdown: finalMarkdown });
     }
 
-    // ── STANDARD DRILLDOWN MODE ───────────────────────────────────────────────
+    // â”€â”€ STANDARD DRILLDOWN MODE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const topics = dedupeTitles(parsedTopics.map((t) => t.title));
 
     const parts = await generateWithBatching(topics, apiKey);

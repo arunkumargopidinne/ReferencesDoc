@@ -1,4 +1,4 @@
-// import OpenAI from "openai";
+﻿// import OpenAI from "openai";
 // import { NextResponse } from "next/server";
 // import { buildGenerateAssignmentPrompt } from "../../../src/lib/prompts";
 
@@ -352,7 +352,7 @@
 
 import { NextResponse } from "next/server";
 import { buildGenerateAssignmentPrompt } from "../../../src/lib/prompts";
-import { callOpenAI } from "../../../src/lib/openai";
+import { callAnthropic } from "../../../src/lib/anthropic";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -451,7 +451,7 @@ export async function POST(req: Request) {
     let nextInput = prompt;
 
     for (let pass = 0; pass < MAX_PASSES; pass++) {
-      const chunk = await callOpenAI(
+      const chunk = await callAnthropic(
         [{ role: "user", content: nextInput }],
         { temperature: 0.2, max_tokens: 4000 }
       );
@@ -460,7 +460,7 @@ export async function POST(req: Request) {
       fullMarkdown = normalizeMarkdown(fullMarkdown + "\n" + chunk);
       fullMarkdown = fullMarkdown.replaceAll("<<CONTINUE>>", "").trim();
 
-      // FIX: Stop immediately if document is complete — do NOT run repair
+      // FIX: Stop immediately if document is complete â€” do NOT run repair
       if (isCompleteDocument(fullMarkdown)) {
         break;
       }
@@ -471,7 +471,7 @@ export async function POST(req: Request) {
       const notYetDone = !hasSubmissionGuidelines(fullMarkdown);
 
       if (!hitTokenLimit || !notYetDone) {
-        // Document finished naturally but may be slightly incomplete —
+        // Document finished naturally but may be slightly incomplete â€”
         // still better than running a full repair that duplicates content
         break;
       }
@@ -480,14 +480,14 @@ export async function POST(req: Request) {
 Continue the assignment reference document in Markdown only.
 
 Rules:
-- Continue EXACTLY from where you stopped — do not repeat any earlier content.
+- Continue EXACTLY from where you stopped â€” do not repeat any earlier content.
 - Do NOT re-write sections that are already complete.
 - Do NOT wrap output in any markdown fence or code block.
 - Complete any unfinished section, then continue with remaining sections.
 - The final section must be "Submission Guidelines" with exactly these 3 bullets:
-  - GitHub Repository Link – containing the complete project source code
-  - Published / Deployed Project Link – live application URL
-  - Screen Recording Link – a short video explaining the project, features, and code walkthrough
+  - GitHub Repository Link â€“ containing the complete project source code
+  - Published / Deployed Project Link â€“ live application URL
+  - Screen Recording Link â€“ a short video explaining the project, features, and code walkthrough
 - After those 3 bullets, STOP. Do not add any conclusion, summary, or extra steps.
 - If you still cannot finish in one response, end with: <<CONTINUE>>
 

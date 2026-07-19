@@ -1,4 +1,4 @@
-// import { NextResponse } from "next/server";
+﻿// import { NextResponse } from "next/server";
 // import { v4 as uuidv4 } from "uuid";
 // import { callOpenAI } from "../../../src/lib/openai";
 // import {
@@ -474,7 +474,7 @@
 
 import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
-import { callOpenAI } from "../../../src/lib/openai";
+import { callAnthropic } from "../../../src/lib/anthropic";
 import {
   GENERATE_TECHSTACK_SYSTEM,
   buildGenerateTechstackUserPrompt,
@@ -784,7 +784,7 @@ async function callModelForTopics(
   apiKey: string | undefined,
   maxTokens: number
 ): Promise<unknown[]> {
-  const content = await callOpenAI(
+  const content = await callAnthropic(
     [
       { role: "system", content: system },
       { role: "user", content: user },
@@ -816,21 +816,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing techStack" }, { status: 400 });
     }
 
-    let apiKey = process.env.OPENAI_API_KEY || process.env.NEXT_PUBLIC_OPENAI_API_KEY;
-    if (!apiKey) {
-      try {
-        const fs = await import("fs");
-        const path = await import("path");
-        const p = path.resolve(process.cwd(), ".env.local");
-        if (fs.existsSync(p)) {
-          const txt = fs.readFileSync(p, "utf8");
-          const m = txt.match(/OPENAI_API_KEY\s*=\s*(\S+)/);
-          if (m) apiKey = m[1];
-        }
-      } catch {
-        // ignore
-      }
-    }
+    // `callAnthropic` loads .env.local itself when the var is unset, so an
+    // empty value here just means "no override".
+    const apiKey = process.env.ANTHROPIC_API_KEY || "";
 
     const parsedTechs = parseTechStackInput(techStackInput);
     const requestedTechs = expandTechAliases(parsedTechs);

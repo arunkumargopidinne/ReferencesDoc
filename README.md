@@ -3,18 +3,21 @@
 Quick setup and environment guidance for running the app locally.
 
 Required environment variables
-- `OPENAI_API_KEY` — your OpenAI API key (required for AI features)
+- `ANTHROPIC_API_KEY` — your Anthropic API key (required for AI features)
 - `NOTION_TOKEN` — Notion integration token (required to create pages)
 - `NOTION_DATABASE_ID` — (optional) Notion database id to create pages in a database
-- `OPENAI_MODEL` — (optional) model name, default used if unset
+- `ANTHROPIC_MODEL` — (optional) model id, defaults to `claude-opus-4-8`
+- `ANTHROPIC_API_KEY_2` … `_5` — (optional) additional keys; rate limits are per
+  organization, so keys from different orgs multiply the available budget
+- `MISTRAL_API_KEY` — (optional) used as a fallback if all Anthropic keys fail
 
 Example `.env.local` (place in project root):
 
 ```env
-OPENAI_API_KEY=sk-...yourkey...
+ANTHROPIC_API_KEY=sk-ant-...yourkey...
 NOTION_TOKEN=secret_...yourtoken...
 NOTION_DATABASE_ID=your-database-id-optional
-OPENAI_MODEL=gpt-4o-mini
+ANTHROPIC_MODEL=claude-opus-4-8
 ```
 
 Install and run
@@ -25,7 +28,7 @@ npm run dev
 ```
 
 Notes
-- The server-side helpers check `OPENAI_API_KEY` at runtime; if the variable is missing, API endpoints that call OpenAI will return an error.
+- The server-side helpers check `ANTHROPIC_API_KEY` at runtime; if the variable is missing, API endpoints that call the model will return an error.
 - For a production deployment make sure environment variables are configured in your hosting provider (Vercel, Netlify, etc.).
 - The project uses the Next.js App Router; pages live under `app/`.
 

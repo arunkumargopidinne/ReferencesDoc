@@ -1,4 +1,4 @@
-// // import { NextResponse } from 'next/server';
+﻿// // import { NextResponse } from 'next/server';
 // // import { callOpenAI } from '../../../src/lib/openai';
 // // import { v4 as uuidv4 } from 'uuid';
 
@@ -160,7 +160,7 @@
 // import { EXTRACT_TOPICS_SYSTEM, buildExtractTopicsUserPrompt } from '../../../src/lib/prompts';
 // import { v4 as uuidv4 } from 'uuid';
 
-// // ── Robust JSON parsing (handles large outputs, markdown fences, trailing commas) ──
+// // â”€â”€ Robust JSON parsing (handles large outputs, markdown fences, trailing commas) â”€â”€
 
 // function safeParseJson(input: string): unknown | null {
 //   try { return JSON.parse(input); } catch { return null; }
@@ -219,7 +219,7 @@
 //   return null;
 // }
 
-// // ── Route handler ──────────────────────────────────────────────────────────────
+// // â”€â”€ Route handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // export async function POST(req: Request) {
 //   try {
@@ -267,7 +267,7 @@
 //       return NextResponse.json({ error: 'OpenAI error: ' + msg }, { status: 502 });
 //     }
 
-//     // ── Robust parse — never crashes on large/malformed JSON ──
+//     // â”€â”€ Robust parse â€” never crashes on large/malformed JSON â”€â”€
 //     const parsed = parseModelJsonObject(content);
 //     if (!parsed) {
 //       const preview = (content || '').slice(0, 500);
@@ -303,14 +303,14 @@
 
 
 import { NextResponse } from 'next/server';
-import { callOpenAI } from '../../../src/lib/openai';
+import { callAnthropic } from '../../../src/lib/anthropic';
 import { EXTRACT_TOPICS_SYSTEM, buildExtractTopicsUserPrompt } from '../../../src/lib/prompts';
 import { v4 as uuidv4 } from 'uuid';
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // JSON REPAIR UTILITIES
 // Handles: markdown fences, curly quotes, trailing commas, TRUNCATED output
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function stripMarkdownCodeFences(input: string): string {
   const match = input.match(/```(?:json)?\s*([\s\S]*?)```/i);
@@ -374,8 +374,8 @@ function safeParseJson(input: string): unknown | null {
 }
 
 /**
- * Full pipeline: strip fences → repair curly quotes/commas → try parse →
- * if fail, repair truncation → try parse again.
+ * Full pipeline: strip fences â†’ repair curly quotes/commas â†’ try parse â†’
+ * if fail, repair truncation â†’ try parse again.
  */
 function parseModelJsonObject(content: string | undefined): Record<string, unknown> | null {
   if (!content) return null;
@@ -402,30 +402,19 @@ function parseModelJsonObject(content: string | undefined): Record<string, unkno
   return pipeline(stripped) ?? pipeline(content);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // API KEY LOADER
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+// `callAnthropic` loads .env.local itself when the var is unset, so returning
+// undefined here just means "no override".
 async function resolveApiKey(): Promise<string | undefined> {
-  let apiKey = process.env.OPENAI_API_KEY || process.env.NEXT_PUBLIC_OPENAI_API_KEY;
-  if (!apiKey) {
-    try {
-      const fs = await import('fs');
-      const path = await import('path');
-      const p = path.resolve(process.cwd(), '.env.local');
-      if (fs.existsSync(p)) {
-        const txt = fs.readFileSync(p, 'utf8');
-        const m = txt.match(/OPENAI_API_KEY\s*=\s*(\S+)/);
-        if (m) apiKey = m[1];
-      }
-    } catch { /* ignore */ }
-  }
-  return apiKey;
+  return process.env.ANTHROPIC_API_KEY;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // TOPIC NORMALIZER
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function normalizeTopic(t: unknown): {
   id: string;
@@ -442,9 +431,9 @@ function normalizeTopic(t: unknown): {
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // ROUTE HANDLER
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function POST(req: Request) {
   try {
@@ -470,14 +459,14 @@ export async function POST(req: Request) {
     // 4. Call OpenAI with a sufficient max_tokens to prevent truncation
     let content: string | undefined;
     try {
-      content = await callOpenAI(
+      content = await callAnthropic(
         [
           { role: 'system', content: system },
           { role: 'user', content: user },
         ],
         {
           temperature: 0,
-          max_tokens: 4096, // ← KEY FIX: prevents truncation on large topic lists
+          max_tokens: 4096, // â† KEY FIX: prevents truncation on large topic lists
         },
         apiKey
       );
