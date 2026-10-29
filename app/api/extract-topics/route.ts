@@ -471,9 +471,9 @@ export async function POST(req: Request) {
         apiKey
       );
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'OpenAI request failed';
-      console.error('extract-topics: OpenAI error:', msg);
-      return NextResponse.json({ error: 'OpenAI error: ' + msg }, { status: 502 });
+      const msg = e instanceof Error ? e.message : 'Model request failed';
+      console.error('extract-topics: model error:', msg);
+      return NextResponse.json({ error: 'Model error: ' + msg }, { status: 502 });
     }
 
     // 5. Robust parse with truncation recovery

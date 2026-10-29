@@ -170,10 +170,12 @@ async function callWithKey(
 ) {
   const { system, messages: rest } = splitSystem(messages);
 
+  // `temperature` is intentionally not sent: current Claude models reject it
+  // with a 400 ("deprecated for this model"). It is still honoured by the
+  // Mistral fallback.
   const data = await postMessages(apiKey, {
     model: DEFAULT_MODEL,
     max_tokens: opts?.max_tokens ?? DEFAULT_MAX_TOKENS,
-    temperature: opts?.temperature ?? 0.2,
     ...(system ? { system } : {}),
     messages: rest,
   });
