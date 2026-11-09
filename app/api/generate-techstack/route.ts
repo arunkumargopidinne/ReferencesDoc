@@ -480,6 +480,11 @@ import {
   buildGenerateTechstackUserPrompt,
 } from "../../../src/lib/prompts";
 
+export const runtime = "nodejs";
+// Vercel kills the function at this limit (FUNCTION_INVOCATION_TIMEOUT).
+// Techs are generated in parallel, so this only needs to cover the slowest one.
+export const maxDuration = 300;
+
 type TopicSection = "asked" | "additional";
 type TopicLevel = "basic" | "intermediate";
 
@@ -799,6 +804,54 @@ async function callModelForTopics(
   return extractTopicsFromPartialModelJson(content);
 }
 
+// One small model call per tech (~35-40 topics, ~2k output tokens) instead of
+// one giant call for the whole stack. A single call for 7 techs needed ~13k
+// output tokens across two sequential requests and blew the Vercel time limit.
+async function generateTopicsForTech(
+  companyName: string,
+  tech: string,
+  apiKey: string
+): Promise<Topic[]> {
+  const toTopics = (raw: unknown[]) =>
+    raw
+      .map((item) => normalizeTopic(item, tech))
+      .filter((topic) => topic.title.length > 0)
+      .map((topic) =>
+        // The call is scoped to this tech, so pin "asked" topics to the exact
+        // requested name (the model may answer "React" for "React JS"), which
+        // keeps counting and content grouping consistent.
+        topic.section === "asked" && !isFundamentalsTech(topic.tech)
+          ? { ...topic, tech }
+          : topic
+      );
+
+  const raw = await callModelForTopics(
+    GENERATE_TECHSTACK_SYSTEM,
+    buildGenerateTechstackUserPrompt(companyName, tech),
+    apiKey,
+    4000
+  );
+  let topics = dedupeTopics(toTopics(raw));
+
+  const needed = MIN_TOPICS_PER_TECH - countAskedTopicsForTech(topics, tech);
+  if (needed > 0) {
+    try {
+      const topup = await callModelForTopics(
+        GENERATE_TECHSTACK_SYSTEM,
+        buildTechTopUpPrompt(companyName, [{ tech, needed }]),
+        apiKey,
+        2500
+      );
+      topics = dedupeTopics([...topics, ...toTopics(topup)]);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "top-up generation failed";
+      console.warn(`generate-techstack: top-up warning for ${tech}:`, message);
+    }
+  }
+
+  return topics;
+}
+
 export async function POST(req: Request) {
   try {
     let body: unknown;
@@ -821,68 +874,39 @@ export async function POST(req: Request) {
     const apiKey = process.env.ANTHROPIC_API_KEY || "";
 
     const parsedTechs = parseTechStackInput(techStackInput);
-    const requestedTechs = expandTechAliases(parsedTechs);
-    const techStackForPrompt = requestedTechs.length
-      ? requestedTechs.join(", ")
-      : techStackInput;
+    const expandedTechs = expandTechAliases(parsedTechs);
+    const requestedTechs = expandedTechs.length ? expandedTechs : [techStackInput.trim()];
 
-    const initialRawTopics = await callModelForTopics(
-      GENERATE_TECHSTACK_SYSTEM,
-      buildGenerateTechstackUserPrompt(companyName, techStackForPrompt),
-      apiKey,
-      8000
+    const results = await Promise.allSettled(
+      requestedTechs.map((tech) => generateTopicsForTech(companyName, tech, apiKey))
     );
 
-    if (!initialRawTopics.length) {
-      return NextResponse.json(
-        { error: "Model returned invalid JSON for tech stack topics. Please retry." },
-        { status: 502 }
-      );
-    }
-
-    const fallbackTech = requestedTechs[0] || "General";
-    let topics = dedupeTopics(
-      initialRawTopics
-        .map((raw) => normalizeTopic(raw, fallbackTech))
-        .filter((topic) => topic.title.length > 0)
-    );
-
-    if (!topics.length) {
-      return NextResponse.json(
-        { error: "Model response did not contain valid topics. Please retry." },
-        { status: 502 }
-      );
-    }
-
-    if (requestedTechs.length) {
-      const missing = requestedTechs
-        .map((tech) => {
-          const count = countAskedTopicsForTech(topics, tech);
-          return { tech, needed: Math.max(0, MIN_TOPICS_PER_TECH - count) };
-        })
-        .filter((entry) => entry.needed > 0);
-
-      if (missing.length > 0) {
-        try {
-          const topupRawTopics = await callModelForTopics(
-            GENERATE_TECHSTACK_SYSTEM,
-            buildTechTopUpPrompt(companyName, missing),
-            apiKey,
-            5000
-          );
-
-          if (topupRawTopics.length > 0) {
-            const topupTopics = topupRawTopics
-              .map((raw) => normalizeTopic(raw, fallbackTech))
-              .filter((topic) => topic.title.length > 0);
-            topics = dedupeTopics([...topics, ...topupTopics]);
-          }
-        } catch (error: unknown) {
-          const message = error instanceof Error ? error.message : "top-up generation failed";
-          console.warn("generate-techstack: top-up warning:", message);
-        }
+    const failedTechs: string[] = [];
+    let firstFailure = "";
+    results.forEach((result, i) => {
+      if (result.status === "fulfilled" && result.value.length > 0) return;
+      failedTechs.push(requestedTechs[i]);
+      if (!firstFailure && result.status === "rejected") {
+        firstFailure =
+          result.reason instanceof Error ? result.reason.message : String(result.reason);
       }
+    });
+
+    // Fail loudly rather than silently producing a doc that is missing a tech.
+    if (failedTechs.length) {
+      return NextResponse.json(
+        {
+          error:
+            `Topic generation failed for: ${failedTechs.join(", ")}. Please retry.` +
+            (firstFailure ? ` (${firstFailure})` : ""),
+        },
+        { status: 502 }
+      );
     }
+
+    const topics = dedupeTopics(
+      results.flatMap((result) => (result.status === "fulfilled" ? result.value : []))
+    );
 
     const countsByTech = requestedTechs.map((tech) => ({
       tech,

@@ -417,6 +417,10 @@ import { callAnthropic } from "../../../src/lib/anthropic";
 import { GENERATE_CONTENT_SYSTEM } from "../../../src/lib/prompts";
 
 export const runtime = "nodejs";
+// Vercel kills the function at this limit (FUNCTION_INVOCATION_TIMEOUT).
+// Callers with large topic lists must send them in small chunks (see
+// TechStackGenerator) so each invocation stays well under it.
+export const maxDuration = 300;
 
 // Free-tier OpenAI keys are capped on requests-per-DAY, so request count is the
 // scarce resource â€” not speed. Covering several topics per call is what makes a
@@ -755,6 +759,9 @@ export async function POST(req: Request) {
       }
 
       const markdownSections: string[] = [];
+      // Per-tech bodies without the "## Tech" heading, so a client that sends
+      // one tech in several chunks can stitch them under a single heading.
+      const sections: Array<{ tech: string; markdown: string }> = [];
 
       for (const tech of groupOrder) {
         const titles = dedupeTitles(grouped.get(tech) || []);
@@ -768,12 +775,14 @@ export async function POST(req: Request) {
           const topicSections = validParts.map((part) =>
             part.replace(/^## /m, "### ")
           );
-          markdownSections.push(`## ${tech}\n\n${topicSections.join("\n\n")}`);
+          const body = topicSections.join("\n\n");
+          sections.push({ tech, markdown: normalizeMarkdown(body) });
+          markdownSections.push(`## ${tech}\n\n${body}`);
         }
       }
 
       const finalMarkdown = normalizeMarkdown(markdownSections.join("\n\n"));
-      return NextResponse.json({ markdown: finalMarkdown });
+      return NextResponse.json({ markdown: finalMarkdown, sections });
     }
 
     // â”€â”€ STANDARD DRILLDOWN MODE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

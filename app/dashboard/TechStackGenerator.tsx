@@ -216,6 +216,40 @@ import { logToSheet } from "../../src/lib/sheets";
 
 type NotionCreateResponse = { preferredUrl?: string; publicUrl?: string; url?: string; error?: string };
 type TaskProps = { startTask: (cancelFn: () => void) => void; updateTask: (progress: number, step: string) => void; endTask: () => void };
+type ContentSection = { tech: string; markdown: string };
+
+// A whole tech stack (~35-40 topics x several techs) takes far longer to write
+// than one serverless invocation may run, so content is requested in small
+// chunks. 7 matches the server's per-model-call batch, so the number of model
+// requests is unchanged; each HTTP call is just one batch.
+const CONTENT_CHUNK_SIZE = 7;
+const CONTENT_CONCURRENCY = 4;
+
+class CancelledError extends Error {}
+
+function topicTech(topic: unknown): string {
+  const tech = topic && typeof topic === "object" ? (topic as Record<string, unknown>).tech : undefined;
+  return typeof tech === "string" && tech.trim() ? tech.trim() : "General";
+}
+
+async function fetchContentChunk(topics: unknown[]): Promise<string> {
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch("/api/generate-content", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topics, mode: "techstack" }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      const sections: ContentSection[] = Array.isArray(data.sections) ? data.sections : [];
+      return sections.map((s) => s.markdown).filter(Boolean).join("\n\n").trim();
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("Content generation failed");
+}
 
 export default function TechStackGenerator({ startTask, updateTask, endTask }: TaskProps) {
   const [company, setCompany] = useState("");
@@ -255,22 +289,59 @@ export default function TechStackGenerator({ startTask, updateTask, endTask }: T
       const topics = dataTopics.topics || [];
       if (!topics.length) throw new Error("No topics extracted");
 
-      updateTask(40, "Generating content…");
-      const resContent = await fetch("/api/generate-content", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topics, mode: "techstack" }),
-      });
+      // Group by tech (preserving order), then split each tech into chunks.
+      const techOrder: string[] = [];
+      const byTech = new Map<string, unknown[]>();
+      for (const topic of topics as unknown[]) {
+        const tech = topicTech(topic);
+        if (!byTech.has(tech)) { byTech.set(tech, []); techOrder.push(tech); }
+        byTech.get(tech)!.push(topic);
+      }
+      const chunks: Array<{ tech: string; topics: unknown[] }> = [];
+      for (const tech of techOrder) {
+        const list = byTech.get(tech)!;
+        for (let i = 0; i < list.length; i += CONTENT_CHUNK_SIZE) {
+          chunks.push({ tech, topics: list.slice(i, i + CONTENT_CHUNK_SIZE) });
+        }
+      }
+
+      const chunkResults: string[] = new Array(chunks.length).fill("");
+      let nextChunk = 0;
+      let doneChunks = 0;
+      updateTask(40, `Generating content… (0/${chunks.length})`);
+      const worker = async () => {
+        while (nextChunk < chunks.length) {
+          if (cancelledRef.current) throw new CancelledError();
+          const i = nextChunk++;
+          chunkResults[i] = await fetchContentChunk(chunks[i].topics);
+          doneChunks++;
+          if (!cancelledRef.current) {
+            updateTask(40 + Math.round((35 * doneChunks) / chunks.length), `Generating content… (${doneChunks}/${chunks.length})`);
+          }
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(CONTENT_CONCURRENCY, chunks.length) }, worker));
       if (cancelledRef.current) return;
-      if (!resContent.ok) throw new Error(await resContent.text());
-      const dataContent = await resContent.json();
-      const markdown: string = (dataContent.markdown || "").trim();
+
+      const markdown = techOrder
+        .map((tech) => {
+          const body = chunks
+            .map((chunk, i) => (chunk.tech === tech ? chunkResults[i] : ""))
+            .filter(Boolean)
+            .join("\n\n");
+          return body ? `## ${tech}\n\n${body}` : "";
+        })
+        .filter(Boolean)
+        .join("\n\n")
+        .trim();
       if (!markdown) throw new Error("No content generated");
 
       updateTask(75, "Creating Notion page…");
       const notionTitle = `${companyName} Reference Document`;
       const resNotion = await fetch("/api/create-notion-toggles", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: notionTitle, markdown, headingLevel: "###" }),
+        // "techstack" mode renders "## Tech" as a heading and each "### Topic" as a toggle under it.
+        body: JSON.stringify({ title: notionTitle, markdown, headingLevel: "###", mode: "techstack" }),
       });
       if (cancelledRef.current) return;
       const dataNotion = (await resNotion.json()) as NotionCreateResponse;

@@ -686,30 +686,47 @@ function countBlockTree(block: AnyBlock): number {
   );
 }
 
+// Notion rejects a request over 1000 blocks OR ~500KB of payload with HTTP 413.
+// Block count alone isn't enough: 100 toggles full of code and bullet
+// rich_text easily pass 500KB, so chunks are capped by serialized size too
+// (with headroom for the page properties and request envelope).
+const MAX_REQUEST_BYTES = 400_000;
+
+function blockByteSize(block: AnyBlock): number {
+  return Buffer.byteLength(JSON.stringify(block), "utf8");
+}
+
 function chunkBlocksForRequest(
   blocks: AnyBlock[],
   maxBlocksPerRequest = 900,
-  maxTopLevelBlocks = 100
+  maxTopLevelBlocks = 100,
+  maxBytesPerRequest = MAX_REQUEST_BYTES
 ): AnyBlock[][] {
   const chunks: AnyBlock[][] = [];
   let currentChunk: AnyBlock[] = [];
   let currentBlockCount = 0;
+  let currentBytes = 0;
 
   for (const block of blocks) {
     const blockTreeSize = countBlockTree(block);
+    const blockBytes = blockByteSize(block) + 1; // +1 for the array comma
     const exceedsBlockLimit =
       currentChunk.length > 0 &&
       currentBlockCount + blockTreeSize > maxBlocksPerRequest;
     const exceedsTopLevelLimit = currentChunk.length >= maxTopLevelBlocks;
+    const exceedsByteLimit =
+      currentChunk.length > 0 && currentBytes + blockBytes > maxBytesPerRequest;
 
-    if (exceedsBlockLimit || exceedsTopLevelLimit) {
+    if (exceedsBlockLimit || exceedsTopLevelLimit || exceedsByteLimit) {
       chunks.push(currentChunk);
       currentChunk = [];
       currentBlockCount = 0;
+      currentBytes = 0;
     }
 
     currentChunk.push(block);
     currentBlockCount += blockTreeSize;
+    currentBytes += blockBytes;
   }
 
   if (currentChunk.length > 0) {
